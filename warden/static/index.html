@@ -465,6 +465,7 @@ function evText(e){
     case "monitor_triggered": return `monitor #${d.monitor_id} hit at ${money(d.price)} (−${d.discount}%)`;
     case "research": return `model ${d.model} · sent "${d.sent}"`;
     case "notify": return `${d.title}: ${d.body}`;
+    case "intent_received": return `${d.intent.sku} ×${d.intent.quantity||1} at ${d.intent.merchant||"demo-store"}${d.intent.reason?` · "${d.intent.reason}"`:""}`;
     case "handoff_created": return `${d.item} ×${d.qty} · ${money(d.expected_total)} · cart handed to you`;
     case "handoff_paid": return `order #${d.order_id}: you paid ${money(d.paid_total)} vs ${money(d.expected_total)} proposed · ${label(d.outcome)}`;
     case "handoff_skipped": return `order #${d.order_id} skipped · ${money(d.expected_total)} released`;
@@ -534,7 +535,7 @@ async function refresh(){
   $("#approvals").innerHTML = pend.length ? pend.map(a=>{ const it=JSON.parse(a.intent), pr=JSON.parse(a.product);
     return `<div class="ap"><div><div class="name">${esc(pr.name)} <span class="sub">×${it.quantity}</span></div>
       <div class="sub">${esc(pr.merchant)}${it.requested_merchant&&it.requested_merchant!==pr.merchant?` · requested ${esc(it.requested_merchant)}`:""} · ${esc(pr.category)} · ${ago(a.ts)} ago</div>
-      <ul class="why">${JSON.parse(a.reasons).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
+      <ul class="why">${(it.reason?[`Agent: ${it.reason}`]:[]).concat(JSON.parse(a.reasons)).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
       <div><div class="amt">${money(pr.price*it.quantity)}</div><div class="acts"><button class="btn no sm" data-ap="${a.id}:reject">Reject</button><button class="btn ok sm" data-ap="${a.id}:approve">Approve</button></div></div></div>`; }).join("")
     : `<div class="empty">No purchases waiting. Anything outside your autonomy level lands here.</div>`;
 

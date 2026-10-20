@@ -62,6 +62,8 @@ class WebPriceReader(MerchantAdapter):
 
     def get_product(self, sku: str) -> Product | None:
         """`sku` is the product URL."""
+        if not sku.lower().startswith(("http://", "https://")):
+            return None  # never file:// or other schemes
         try:
             req = urllib.request.Request(sku, headers={"User-Agent": UA})
             html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "ignore")

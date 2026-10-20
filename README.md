@@ -118,6 +118,38 @@ caps, blocked merchants and categories, and "frontier models can't buy".
 A human approval overrides the dial, never the hard limits. If the price
 rises more than 2% between decision and checkout, the order is aborted.
 
+## Connect Claude Desktop, Claude Code, Cursor (MCP)
+
+`./mcp.sh` is an MCP server (stdio) that connects any MCP client to Warden.
+Keep the hub running (`./run.sh`), then point your client at the script's
+absolute path:
+
+```bash
+# Claude Code
+claude mcp add warden -- /absolute/path/to/warden/mcp.sh
+```
+
+```jsonc
+// Claude Desktop: claude_desktop_config.json   ·   Cursor: ~/.cursor/mcp.json
+{ "mcpServers": { "warden": { "command": "/absolute/path/to/warden/mcp.sh" } } }
+```
+
+Then just ask: *"get me a basic office chair"*, *"buy the grill when it's 25% off"*.
+
+| Tool | Does |
+|---|---|
+| `get_policy` | Risk level, payment mode, limits and budget left today / this month |
+| `search_products` | Products Warden can buy, with live prices and SKUs |
+| `request_purchase(sku, reason)` | Proposes a purchase. `reason` is shown to you on the card |
+| `check_request(approval_id \| order_id)` | Follow up: waiting, approved, handed off, paid, shipped |
+| `watch_price(sku, max_price \| min_discount_pct, action)` | Price watch that notifies, or proposes a purchase (still through policy) |
+| `track_record` | How often you paid what agents proposed |
+
+The MCP server holds only the **agent token** (it refuses to start with the
+owner token), so the model can propose but never approve, pay or change your
+policy. It needs no card and never sees one. On Windows, run
+`python -m warden.mcp_server` from the repo folder instead of `mcp.sh`.
+
 ## Connect your own agent
 
 Any agent can request a purchase; it never gets card details.
@@ -156,6 +188,7 @@ warden/
   hub.py           orchestration: tasks, approvals, execution, monitors, orders
   merchants/       adapters: demo-store (buyable), web (read-only price reader)
   server.py        FastAPI + dashboard (static/index.html)
+  mcp_server.py    MCP tools for Claude Desktop / Claude Code / Cursor (agent token only)
 tests/            core, handoff and API-auth tests (pip install -r requirements-dev.txt; pytest)
 ```
 
@@ -172,9 +205,9 @@ tests/            core, handoff and API-auth tests (pip install -r requirements-
    profile. Keep `place_order` behind the executor only.
 3. **Order tracking** — parse order/shipping emails (local IMAP + local model)
    instead of scraping merchant sites.
-4. **MCP server** — expose `search`, `request_purchase`, `create_monitor` as MCP
-   tools so Claude Desktop, Cursor, OpenClaw etc. plug in with zero code.
-   Their proposals flow into the same handoff queue and track record.
+4. ~~**MCP server**~~ — done (`./mcp.sh`). Next: let agents propose any product
+   URL on the web in handoff mode, with the merchant taken from the domain,
+   so they aren't limited to connected stores.
 5. **Approvals off the machine** — sign approvals on your phone, and anchor
    the ledger head outside the machine, so a local agent can't approve its
    own purchases or rewrite history.

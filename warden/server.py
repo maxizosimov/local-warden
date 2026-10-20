@@ -144,7 +144,11 @@ def track_record():
 
 @app.get("/api/policy", dependencies=[Depends(agent)])
 def get_policy():
-    return hub.policy.to_dict()
+    today, month = hub.spend()
+    pol = hub.policy
+    return {**pol.to_dict(), "spend": {"today": today, "month": month},
+            "remaining": {"today": round(max(0, pol.daily_cap - today), 2),
+                          "month": round(max(0, pol.monthly_cap - month), 2)}}
 
 
 @app.put("/api/policy", dependencies=[Depends(owner)])
@@ -153,17 +157,33 @@ def put_policy(body: dict = Body(...)):
 
 
 # ---- monitors ------------------------------------------------------------
-@app.post("/api/monitors", dependencies=[Depends(owner)])
-def add_monitor(body: dict = Body(...)):
+@app.post("/api/monitors")
+def add_monitor(body: dict = Body(...), who: str = Depends(agent)):
+    """Agents may set monitors too: a monitor that buys still goes through policy."""
     merchant = body.get("merchant", "demo-store")
     sku = body.get("sku") or body.get("url")
     a = REGISTRY.get(merchant)
     p = a.get_product(sku) if a and sku else None
     if not p:
         raise HTTPException(404, "product not found / price unreadable")
+    action = body.get("action") or ("buy" if a.can_purchase else "notify")
+    if action not in ("buy", "notify"):
+        raise HTTPException(400, "action must be buy or notify")
+    if body.get("max_price") is None and body.get("min_discount_pct") is None:
+        raise HTTPException(400, "set max_price or min_discount_pct")
     mid = hub.add_monitor(merchant, sku, p.name, body.get("max_price"), body.get("min_discount_pct"),
-                          int(body.get("quantity", 1)), body.get("action", "notify" if not a.can_purchase else "buy"))
-    return {"monitor_id": mid, "product": p.to_dict()}
+                          int(body.get("quantity", 1)), action, actor=who)
+    return {"monitor_id": mid, "product": p.to_dict(), "action": action}
+
+
+@app.get("/api/approvals/{aid}", dependencies=[Depends(agent)])
+def approval_status(aid: int):
+    return hub.request_status(approval_id=aid)
+
+
+@app.get("/api/orders/{oid}", dependencies=[Depends(agent)])
+def order_status(oid: int):
+    return hub.request_status(order_id=oid)
 
 
 @app.delete("/api/monitors/{mid}", dependencies=[Depends(owner)])

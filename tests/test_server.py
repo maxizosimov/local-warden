@@ -61,3 +61,14 @@ def test_handoff_paid_via_api(srv):
     p = c.post(f"/api/orders/{r['order_id']}/paid", json={"amount": 14.49}, headers=o).json()
     assert p["outcome"] == "as_proposed"
     assert c.get("/api/track-record", headers=o).json()["overall"]["as_proposed"] == 1
+
+
+def test_hosted_hostname_allowed(tmp_path, monkeypatch):
+    monkeypatch.setenv("WARDEN_DATA", str(tmp_path))
+    monkeypatch.setenv("WARDEN_ALLOWED_HOSTS", "warden-abc.onrender.com")
+    import warden.server as server
+    server = importlib.reload(server)
+    c = TestClient(server.app, base_url="https://warden-abc.onrender.com")
+    assert c.get("/").status_code == 200
+    assert c.get("/api/state").status_code == 401  # still needs the owner token
+    assert c.get("/", headers={"Host": "evil.example"}).status_code == 403

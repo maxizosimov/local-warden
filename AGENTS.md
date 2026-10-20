@@ -25,6 +25,13 @@ The `commit-msg` hook in `.githooks/` enforces this. Enable it once per clone:
 git config core.hooksPath .githooks
 ```
 
+## GitHub from cloud agent sessions
+
+`gh` works, but GraphQL is blocked, so `gh pr view`, `gh pr list`,
+`gh pr create` and similar fail. Use the REST API through `gh api` instead,
+for example `gh api repos/maxizosimov/local-warden/pulls/1`. `gh auth status`
+reports an invalid token there even though requests succeed; ignore it.
+
 ## Working on Warden
 
 - Run: `./run.sh` (dashboard at the link it prints). MCP server: `./mcp.sh`.

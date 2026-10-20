@@ -1,0 +1,17 @@
+# Free hosted preview on Render: New > Blueprint, pick this repo.
+# Redeploys on every push to main. The free plan sleeps when idle and has no
+# disk, so data resets on each deploy or restart. No local model there:
+# rules handle its jobs.
+services:
+  - type: web
+    name: warden
+    runtime: docker
+    plan: free
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: WARDEN_OWNER_TOKEN
+        generateValue: true
+      - key: WARDEN_AGENT_TOKEN
+        generateValue: true

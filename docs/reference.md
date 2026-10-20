@@ -122,6 +122,28 @@ curl -X POST localhost:8787/api/intents -H "Authorization: Bearer $(cat data/age
 | `PUT /api/policy` | owner | Change settings |
 | `GET /api/ledger/verify`, `/api/export/orders.csv` | agent / owner | Check the log, export orders |
 
+## Hosting
+
+Warden is built to run on your machine. A hosted copy is for previewing
+changes from anywhere, with the demo store and no local model.
+
+**Render (free):** on render.com choose New → Blueprint and pick this repo.
+`render.yaml` builds the Dockerfile, redeploys on every push to `main`, and
+generates both tokens (Environment tab). Open
+`https://<your-app>.onrender.com/#owner=<WARDEN_OWNER_TOKEN>`. The free plan
+sleeps after about 15 idle minutes (slow first load) and has no disk, so data
+resets on each deploy.
+
+**Any other host** that runs a Docker image works too. Set
+`WARDEN_ALLOWED_HOSTS=<your hostname>` (the hub only answers to hostnames it
+knows) and `WARDEN_OWNER_TOKEN`; `PORT` is respected.
+
+To point an agent at a hosted hub: `WARDEN_URL=https://<your-app>.onrender.com`
+and `WARDEN_AGENT_TOKEN=<token>` for `./mcp.sh`.
+
+**Docker locally** with your local model:
+`docker run -p 127.0.0.1:8787:8787 -v warden-data:/data -e WARDEN_LOCAL_URL=http://host.docker.internal:11434/v1 warden`.
+
 ## Code layout
 
 ```

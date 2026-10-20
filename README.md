@@ -33,6 +33,10 @@ request shows which model or rule handled each step.
 ./run.sh
 ```
 
+Or with Docker: `docker build -t warden . && docker run -p 127.0.0.1:8787:8787 -v warden-data:/data warden`.
+For a free hosted copy that redeploys on every push, see
+[docs/reference.md](docs/reference.md#hosting).
+
 Open the link it prints (`http://127.0.0.1:8787/#owner=…`). It works with no
 model, card or store account: a demo store and rule-based fallbacks run the
 whole flow. Try `buy gel pens`, `buy the propane grill when it's 25% off`,

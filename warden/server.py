@@ -47,7 +47,10 @@ async def lifespan(_app):
 
 app = FastAPI(title="Warden", version="0.2.0", lifespan=lifespan)
 STATIC = Path(__file__).parent / "static"
-LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", os.getenv("WARDEN_HOST", "127.0.0.1")}
+# Hostnames the hub answers to. Add yours when hosting it (Render sets RENDER_EXTERNAL_HOSTNAME).
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", os.getenv("WARDEN_HOST", "127.0.0.1"),
+               os.getenv("RENDER_EXTERNAL_HOSTNAME", "localhost"),
+               *filter(None, os.getenv("WARDEN_ALLOWED_HOSTS", "").split(","))}
 
 
 @app.middleware("http")
@@ -269,9 +272,10 @@ and never saw a payment method. Close this tab and click <b>Mark paid</b> in War
 def main():
     import uvicorn
     host = os.getenv("WARDEN_HOST", "127.0.0.1")
-    port = int(os.getenv("WARDEN_PORT", "8787"))
+    port = int(os.getenv("WARDEN_PORT") or os.getenv("PORT") or "8787")  # hosts like Render set PORT
+    shown = "localhost" if host == "0.0.0.0" else host
     print(f"\n  Warden hub (open this link; it carries your owner token)\n"
-          f"    http://{host}:{port}/#owner={OWNER_TOKEN}\n\n"
+          f"    http://{shown}:{port}/#owner={OWNER_TOKEN}\n\n"
           f"  Agent token for your agents: data/agent_token\n")
     uvicorn.run(app, host=host, port=port, log_level="warning")
 

@@ -42,14 +42,12 @@ class Policy:
     require_approval_categories: list[str] = field(default_factory=list)
     frontier_research_allowed: bool = True  # frontier models may research, never execute
     frontier_redact_pii: bool = True
-    # "handoff": Warden prepares the cart and you pay; nothing is charged by Warden.
-    # "pay": Warden pays with a single-use token. pay_merchants turns on "pay" for
-    # individual merchants once the agent has earned it there.
-    payment_mode: str = "handoff"
+    # Warden prepares the cart and you pay, except at these stores, where it pays
+    # with a single-use token once the agent has earned it (see Hub.track_record).
     pay_merchants: list[str] = field(default_factory=list)
 
     def pays_at(self, merchant: str) -> bool:
-        return self.payment_mode == "pay" or merchant_in(merchant, self.pay_merchants)
+        return merchant_in(merchant, self.pay_merchants)
 
     @classmethod
     def load(cls, path: str | Path) -> "Policy":

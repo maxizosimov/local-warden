@@ -155,12 +155,13 @@ svg.spark{width:96px;height:26px;display:block}
 a.btn{display:inline-flex;align-items:center;text-decoration:none}
 @media (max-width:600px){.ho,.ap{grid-template-columns:1fr}.ho .amt,.ap .amt{text-align:left}.ho .acts,.ap .acts{justify-content:flex-start}}
 
-/* payment mode */
-.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:0 14px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)}
-.seg button{height:28px;border:0;background:transparent;color:var(--mute);font:500 12px Inter,sans-serif;border-radius:6px}
-.seg button:hover{color:var(--ink)}
-.seg button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
-.segnote{font-size:11.5px;color:var(--mute);margin:-4px 14px 12px}
+/* who does what */
+.role{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12.5px}
+.role:last-child{border-bottom:0}
+.role .by{display:flex;align-items:center;gap:6px;font:11.5px var(--monof);color:var(--ink2);justify-content:flex-end;text-align:right}
+.role .fb{grid-column:1/-1;font-size:11px;color:var(--faint)}
+.tag{font:500 10.5px var(--monof);text-transform:uppercase;letter-spacing:.06em;color:var(--amber)}
+.ho .tag{color:var(--agent)}
 
 /* track record */
 .tr{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line)}
@@ -230,7 +231,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
 <div class="top">
   <div class="logo"><span class="mark"></span>Warden</div>
   <div class="crumb">/ <b>local workspace</b> / spend control</div>
-  <div class="status" id="pills"></div>
+  <div class="status" id="ledger"></div>
 </div>
 
 <div class="wrap">
@@ -259,13 +260,8 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
       </div>
 
       <div class="panel">
-        <div class="ph"><h3>Ready for you to pay</h3><span class="count" id="hoCount">0</span><span class="right sub">agent prepared · you pay</span></div>
-        <div id="handoffs"></div>
-      </div>
-
-      <div class="panel" id="approvalsCard">
-        <div class="ph"><h3>Pending approval</h3><span class="count" id="apCount">0</span></div>
-        <div id="approvals"></div>
+        <div class="ph"><h3>Needs you</h3><span class="count" id="inCount">0</span><span class="right sub">approve, then pay at the store</span></div>
+        <div id="inbox"></div>
       </div>
 
       <div class="panel">
@@ -287,6 +283,11 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
 
     <div class="col">
       <div class="panel">
+        <div class="ph"><h3>Who does what</h3><span class="right sub" id="localState"></span></div>
+        <div id="roles"></div>
+      </div>
+
+      <div class="panel">
         <div class="ph"><h3>Risk dial</h3><span class="right sub">autonomy inside hard limits</span></div>
         <div class="dialwrap">
           <div class="rl"><span class="lvl num" id="lvlNum">1</span><span class="nm" id="lvlName"></span></div>
@@ -294,8 +295,6 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
           <div class="dlabels"><span>Observe</span><span>Autonomous</span></div>
           <div class="ddesc" id="dialDesc"></div>
         </div>
-        <div class="seg" id="seg"><button type="button" data-mode="handoff">Handoff · you pay</button><button type="button" data-mode="pay">Warden pays</button></div>
-        <div class="segnote" id="segNote"></div>
         <details class="limits">
           <summary>Hard limits</summary>
           <form class="lf" id="limits">
@@ -363,14 +362,10 @@ const label = s => String(s||"").replace(/_/g," ");
 $("#gateForm").onsubmit = e => { e.preventDefault(); setOwner($("#gateTok").value.trim()); refresh(); loadCatalog(); };
 $("#csv").onclick = async () => { const r = await raw("/api/export/orders.csv"); if (!r.ok) return toast("Export failed");
   const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = "warden-orders.csv"; a.click(); };
-$("#seg").onclick = async e => { const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.mode === "pay" && !confirm("Warden pays everywhere inside your limits.\nPayments are simulated (mock vault) in this MVP. Continue?")) return;
-  await api("/api/policy",{method:"PUT",body:{payment_mode:b.dataset.mode}}); toast(b.dataset.mode==="pay"?"Warden pays (simulated)":"Handoff mode · you pay"); refresh(); };
 
 document.addEventListener("keydown", e => { if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); $("#cmd").focus(); } });
 
-const EXAMPLES = ["buy a chair from staples","buy gel pens","buy the propane grill when it's 25% off",
-  "tell me when the standing desk drops below $200","find me the best office chair under 200","buy a $100 gift card"];
+const EXAMPLES = ["buy gel pens","buy a chair, my back hurts","buy the propane grill when it's 25% off","find me the best office chair under 200"];
 $("#chips").innerHTML = EXAMPLES.map(e=>`<button class="sug" type="button">${esc(e)}</button>`).join("");
 $("#chips").onclick = e => { if (e.target.matches(".sug")) { $("#cmd").value = e.target.textContent; $("#cmd").focus(); } };
 
@@ -405,13 +400,16 @@ function showResult(r){
   const box = $("#result"); box.className = "trace show";
   const P = r.parsed, dec = r.decision;
   const cond = [P.merchant&&`merchant=${P.merchant}`, P.max_price&&`max=$${P.max_price}`, P.min_discount_pct&&`discount≥${P.min_discount_pct}%`, P.quantity>1&&`qty=${P.quantity}`].filter(Boolean).join(" · ");
-  const steps = [["done","parse",`<span class="b agent">${esc(P.type)}</span> "${esc(P.query)}" ${cond?`<span class="sub">· ${esc(cond)}</span>`:""} <span class="sub">via ${esc(r.parser)}</span>`]];
-  if (r.note) steps.push(["warn","route",esc(r.note)]);
-  if (r.product) steps.push(["done","match",`${esc(r.product.name)} <span class="num">${money(r.product.price)}</span>`]);
-  if (dec) steps.push([dec.outcome==="allow"?"done":dec.outcome==="deny"?"bad":"warn","policy",`<span class="b ${dec.outcome}">${label(dec.outcome)}</span> ${dec.reasons.map(esc).join(" ")}`]);
-  if (r.status==="handed_off") steps.push(["done","handoff",`cart ready for you to pay · <span class="num">${money(r.expected_total)}</span> · no card used <a class="btn ghost sm" style="margin-left:6px" href="${esc(r.cart_url)}" target="_blank" rel="noopener">Open cart</a>`]);
+  const by = who => `<span class="sub"> · ${esc(who)}</span>`;
+  const steps = [["done","understand",`<span class="b agent">${esc(P.type)}</span> "${esc(P.query)}" ${cond?`<span class="sub">${esc(cond)}</span>`:""}${by(r.parser)}`]];
+  if (r.note) steps.push(["warn","store",esc(r.note)]);
+  if (r.product) steps.push(["done","pick",`${esc(r.product.name)} <span class="num">${money(r.product.price)}</span>${r.picked_by?by(r.picked_by):""}`]);
+  if (dec) steps.push([dec.outcome==="allow"?"done":dec.outcome==="deny"?"bad":"warn","policy",`<span class="b ${dec.outcome}">${label(dec.outcome)}</span> ${dec.reasons.map(esc).join(" ")}${by("policy engine")}`]);
+  if (r.status==="awaiting_approval") steps.push(["warn","you","approve it under Needs you"]);
+  if (r.status==="handed_off") steps.push(["done","you",`pay at the store · <span class="num">${money(r.expected_total)}</span> · no card used <a class="btn ghost sm" style="margin-left:6px" href="${esc(r.cart_url)}" target="_blank" rel="noopener">Open cart</a>`]);
   if (r.status==="ordered") steps.push(["done","execute",`single-use token → order <span class="mono">${esc(r.merchant_order_id)}</span>`]);
   if (r.sent_to_frontier) steps.push(["done","research",`sent off-device (redacted): <span class="mono">"${esc(r.sent_to_frontier)}"</span>`]);
+  if (r.status==="researched") steps.push(["done","you","pick a match below; buying still goes through policy"]);
   let h = `<div class="head"><span class="b ${r.status}">${label(r.status)}</span><span class="msg">${esc(r.message||"")}</span></div>`;
   h += steps.map(([c,k,d])=>`<div class="step"><span class="ic ${c}"></span><span class="k">${k}</span><span class="d">${d}</span></div>`).join("");
   if (r.answer) h += `<pre>${esc(r.answer)}</pre>`;
@@ -456,7 +454,7 @@ const STAGES = ["placed","processing","shipped","out_for_delivery","delivered"];
 function evText(e){
   const d = e.data;
   switch(e.kind){
-    case "task_received": return `"${d.text}" → ${d.parsed.type} (${d.parser})`;
+    case "task_received": return `"${d.text}" → ${d.parsed.type} · ${d.parser}`;
     case "policy_decision": return `${d.intent.item} ${money(d.total)} → ${label(d.decision.outcome)}. ${d.decision.reasons.join(" ")}`;
     case "order_placed": return `${d.item} ×${d.qty} · ${money(d.total)} · ${d.merchant_order_id} · ${d.approved_by}`;
     case "payment_token_minted": return `single-use token · ${d.merchant} · limit ${money(d.limit)}`;
@@ -483,24 +481,40 @@ async function refresh(){
   try { S = await api("/api/state"); } catch(e){ return; }
   const p = S.policy, m = S.models;
   const handoffs = S.orders.filter(o=>o.status==="handed_off");
-  $("#pills").innerHTML =
-    `<span class="st" title="${esc(m.local.url)}"><span class="dot ${m.local.reachable?"up":"amber"}"></span>${m.local.reachable?esc(m.local.model):"rule-parser"}</span>`+
-    `<span class="st"><span class="dot ${m.frontier.configured&&p.frontier_research_allowed?"up":""}"></span>frontier ${m.frontier.configured?(p.frontier_research_allowed?"research":"off"):"unset"}</span>`+
-    `<span class="st"><span class="dot ${S.ledger_ok.ok?"up":"down"}"></span>ledger ${S.ledger_ok.ok?"verified":"TAMPERED #"+S.ledger_ok.broken_at}</span>`;
-  const handoffMode = p.payment_mode !== "pay";
-  $("#modeFoot").textContent = handoffMode ? (p.pay_merchants.length ? `Handoff mode · Warden pays at ${p.pay_merchants.join(", ")}` : "Handoff mode · agent prepares, you pay") : "Warden pays · simulated single-use tokens";
-  document.querySelectorAll("#seg button").forEach(b=>b.classList.toggle("on", b.dataset.mode === (handoffMode?"handoff":"pay")));
-  $("#segNote").textContent = handoffMode ? "\u201CGoes through\u201D means the cart is prepared for you to pay. Nothing is charged." : "Payments use the mock vault in this MVP. Products from other websites are always handed to you.";
-  $("#hoCount").textContent = handoffs.length;
-  $("#handoffs").innerHTML = handoffs.length ? handoffs.map(o=>`<div class="ho"><div><div class="name">${esc(o.item)} <span class="sub">×${o.qty}</span></div>
+  $("#ledger").innerHTML = `<span class="st"><span class="dot ${S.ledger_ok.ok?"up":"down"}"></span>ledger ${S.ledger_ok.ok?"verified":"TAMPERED #"+S.ledger_ok.broken_at}</span>`;
+  $("#modeFoot").textContent = p.pay_merchants.length ? `You pay · Warden pays at ${p.pay_merchants.join(", ")}` : "Agent prepares · you pay";
+
+  // Who does what: each job, who handles it now, and the fallback.
+  const local = m.local.reachable, front = m.frontier.configured && p.frontier_research_allowed;
+  $("#localState").innerHTML = local ? `<span class="up">●</span> ${esc(m.local.model)} running` : `<span style="color:var(--amber)">●</span> no local model · rules in use`;
+  const L = `local · ${m.local.model}`;
+  // [who handles it right now, is the preferred handler running]
+  const handler = r => r.by === "local" ? (local ? [L, true] : [r.fallback, false])
+    : r.by === "rules, then local" ? [local ? `rules, then ${L}` : "rules", true]
+    : r.by.startsWith("frontier") ? (front ? [`frontier · ${m.frontier.model}`, true] : [local ? L : "off", false])
+    : [r.by, true];
+  $("#roles").innerHTML = m.roles.map(r=>{ const [now, ok] = handler(r);
+    return `<div class="role"><span>${esc(r.task)}</span><span class="by"><span class="dot ${ok?"up":"amber"}"></span>${esc(now)}</span>
+      ${r.fallback && ok ? `<span class="fb">if unavailable: ${esc(r.fallback)}</span>` : ""}</div>`; }).join("");
+
+  const pend = S.approvals.filter(a=>a.status==="pending");
+  const approvalCards = pend.map(a=>{ const it=JSON.parse(a.intent), pr=JSON.parse(a.product);
+    const isWeb = /^https?:/.test(pr.url||"");
+    return `<div class="ap"><div><div class="tag">Approve</div><div class="name">${isWeb?`<a href="${esc(pr.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(pr.name)} ↗</a>`:esc(pr.name)} <span class="sub">×${it.quantity}</span>${it.price_verified===false?` <span class="b changed">price unverified</span>`:""}</div>
+      <div class="sub">${esc(pr.merchant)}${it.requested_merchant&&it.requested_merchant!==pr.merchant?` · requested ${esc(it.requested_merchant)}`:""} · ${esc(pr.category)} · ${ago(a.ts)} ago</div>
+      <ul class="why">${(it.reason?[`Agent: ${it.reason}`]:[]).concat(JSON.parse(a.reasons)).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
+      <div><div class="amt">${money(pr.price*it.quantity)}</div><div class="acts"><button class="btn no sm" data-ap="${a.id}:reject">Reject</button><button class="btn ok sm" data-ap="${a.id}:approve">Approve</button></div></div></div>`; });
+  const payCards = handoffs.map(o=>`<div class="ho"><div><div class="tag">Pay</div><div class="name">${esc(o.item)} <span class="sub">×${o.qty}</span></div>
       <div class="sub">${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?` · requested ${esc(o.requested_merchant)}`:""} · ${esc(o.approved_by.startsWith("policy")?"agent · policy":"approved by "+o.approved_by)} · ${ago(o.ts)} ago</div>
       <ul class="why" style="margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)">${JSON.parse(o.rationale||"[]").map(r=>`<li>→ ${esc(r)}</li>`).join("")}</ul></div>
       <div><div class="amt">${money(o.expected_total)}</div><div class="acts">
         <a class="btn ghost sm" href="${esc(o.cart_url)}" target="_blank" rel="noopener">${/^https?:/.test(o.cart_url||"")?"Open "+esc(o.merchant)+" ↗":"Open cart"}</a>
         <button class="btn no sm" data-skip="${o.id}">Skip</button>
         <input id="amt-${o.id}" type="number" step="0.01" value="${Number(o.expected_total).toFixed(2)}" aria-label="Amount charged">
-        <button class="btn ok sm" data-paid="${o.id}">Mark paid</button></div></div></div>`).join("")
-    : `<div class="empty">Nothing to pay. Allowed purchases land here with the cart ready; you pay at the store, then record it.</div>`;
+        <button class="btn ok sm" data-paid="${o.id}">Mark paid</button></div></div></div>`);
+  $("#inCount").textContent = pend.length + handoffs.length;
+  $("#inbox").innerHTML = approvalCards.concat(payCards).join("") ||
+    `<div class="empty">Nothing needs you. Purchases outside your risk level wait here for approval; allowed ones come back ready for you to pay.</div>`;
 
   const T = S.track_record, o = T.overall, dec = o.as_proposed + o.changed + o.skipped;
   $("#track").innerHTML = `<div class="tr">
@@ -511,15 +525,14 @@ async function refresh(){
     (Object.keys(T.merchants).length ? `<div class="scroll"><table><thead><tr><th>Merchant</th><th class="r">As proposed</th><th class="r">Changed</th><th class="r">Skipped</th></tr></thead><tbody>` +
       Object.entries(T.merchants).map(([m,t])=>`<tr><td>${esc(m)}${p.pay_merchants.includes(m)?` <span class="b agent">pays</span>`:""}${t.open?`<div class="sub">${t.open} open</div>`:""}</td><td class="r num"><span class="up">${t.as_proposed}</span><span class="sub"> / ${t.proposed - t.open}</span></td><td class="r num">${t.changed}</td><td class="r num">${t.skipped}</td></tr>`).join("") + `</tbody></table></div>`
       : `<div class="empty">Trust is earned per merchant: after ${T.min_proposals} proposals you paid unchanged, Warden offers to pay there itself.</div>`);
-  $("#modelFoot").innerHTML = `<span class="dot ${m.local.reachable?"up":"amber"}"></span>${m.local.reachable?esc(m.local.model)+" · local":"rule-parser · no local model"}`;
+  $("#modelFoot").innerHTML = `<span class="dot ${m.local.reachable?"up":"amber"}"></span>${m.local.reachable?esc(m.local.model)+" · local":"rules · no local model"}`;
 
-  const pend = S.approvals.filter(a=>a.status==="pending");
   const active = S.monitors.filter(x=>x.status==="active");
   const pendAmt = pend.reduce((s,a)=>{const it=JSON.parse(a.intent),pr=JSON.parse(a.product);return s+pr.price*it.quantity},0);
   $("#kpis").innerHTML =
     kpi("Spent today", `<span class="num">${money(S.spend.today)}</span>`, `of ${money(p.daily_cap)} daily cap`, S.spend.today/p.daily_cap*100) +
     kpi("This month", `<span class="num">${money(S.spend.month)}</span>`, `of ${money(p.monthly_cap)} monthly cap`, S.spend.month/p.monthly_cap*100) +
-    kpi("Pending", `<span class="num ${pend.length?"":""}" style="${pend.length?"color:var(--amber)":""}">${pend.length}</span> <small>${money(pendAmt)}</small>`, `${pend.length} to approve · ${handoffs.length} to pay`, null) +
+    kpi("Needs you", `<span class="num" style="${pend.length+handoffs.length?"color:var(--amber)":""}">${pend.length+handoffs.length}</span> <small>${money(pendAmt+handoffs.reduce((s,o)=>s+o.expected_total,0))}</small>`, `${pend.length} to approve · ${handoffs.length} to pay`, null) +
     kpi("Watching", `<span class="num">${active.length}</span>`, `${S.monitors.filter(x=>x.status==="triggered").length} triggered all-time`, null) +
     kpi("Risk level", `<span class="num" style="color:${RCOL[p.risk_level]}">${p.risk_level}</span> <small>${esc(p.risk_name)}</small>`, `max ${money(p.max_per_transaction)} / purchase`, null);
 
@@ -532,14 +545,6 @@ async function refresh(){
     for (const k of ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"]) f[k].value=p[k].join(", ");
     f.frontier_research_allowed.checked=p.frontier_research_allowed; f.frontier_redact_pii.checked=p.frontier_redact_pii; }
 
-  $("#apCount").textContent = pend.length;
-  $("#approvals").innerHTML = pend.length ? pend.map(a=>{ const it=JSON.parse(a.intent), pr=JSON.parse(a.product);
-    const isWeb = /^https?:/.test(pr.url||"");
-    return `<div class="ap"><div><div class="name">${isWeb?`<a href="${esc(pr.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(pr.name)} ↗</a>`:esc(pr.name)} <span class="sub">×${it.quantity}</span>${it.price_verified===false?` <span class="b changed">price unverified</span>`:""}</div>
-      <div class="sub">${esc(pr.merchant)}${it.requested_merchant&&it.requested_merchant!==pr.merchant?` · requested ${esc(it.requested_merchant)}`:""} · ${esc(pr.category)} · ${ago(a.ts)} ago</div>
-      <ul class="why">${(it.reason?[`Agent: ${it.reason}`]:[]).concat(JSON.parse(a.reasons)).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
-      <div><div class="amt">${money(pr.price*it.quantity)}</div><div class="acts"><button class="btn no sm" data-ap="${a.id}:reject">Reject</button><button class="btn ok sm" data-ap="${a.id}:approve">Approve</button></div></div></div>`; }).join("")
-    : `<div class="empty">No purchases waiting. Anything outside your autonomy level lands here.</div>`;
 
   $("#monCount").textContent = active.length;
   $("#monitors").innerHTML = S.monitors.length ? `<thead><tr><th>Item</th><th class="r">Last</th><th class="r">Δ vs list</th><th>Trend</th><th>Target</th><th>Then</th><th>Status</th><th></th></tr></thead><tbody>` +

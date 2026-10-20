@@ -111,13 +111,13 @@ def test_private_url_refused_by_hub(hub, url):
 
 def test_warden_never_pays_on_websites(hub, site):
     site[CHAIR] = CHAIR_HTML
-    hub.set_policy({"risk_level": 4, "payment_mode": "pay", "pay_merchants": ["staples.com"],
+    hub.set_policy({"risk_level": 4, "pay_merchants": ["staples.com"],
                     "daily_cap": 2000, "monthly_cap": 5000})
     for _ in range(5):
         r = hub.submit_intent({"url": CHAIR}, "external-agent")
         assert r["status"] == "handed_off"
         hub.mark_paid(r["order_id"], 129.99)
-    hub.set_policy({"payment_mode": "handoff", "pay_merchants": []})
+    hub.set_policy({"pay_merchants": []})
     assert hub.track_record()["suggestions"] == []  # can't offer to pay where Warden can't
 
 

@@ -98,11 +98,6 @@ def parse_product(html: str) -> dict | None:
     return None
 
 
-def parse_price(html: str) -> tuple[str, float] | None:
-    r = parse_product(html)
-    return (r["name"], r["price"]) if r else None
-
-
 class WebPriceReader(MerchantAdapter):
     name = "web"
     can_purchase = False  # Warden never pays here; purchases are handed off to you

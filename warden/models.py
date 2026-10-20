@@ -1,14 +1,10 @@
-"""Model router.
+"""Which model does what.
 
-LOCAL model  - does everything that touches your data or money: parsing
-               requests, choosing products, deciding to buy. Any server that
-               speaks the OpenAI chat API works: Ollama, LM Studio, llama.cpp,
-               vLLM, Jan, etc.
-FRONTIER     - optional, research only. Gets a redacted question, returns
-               text. It has no tools and its output can never trigger a
-               purchase on its own.
-
-If no local model is reachable, a rule-based parser keeps the demo working.
+Small, private jobs go to your LOCAL model (Ollama, LM Studio, llama.cpp, vLLM,
+anything with an OpenAI-style chat API). Each has a rule-based fallback, so
+Warden works with no model at all. Open-ended research can go to a FRONTIER
+model, but only as redacted text with no tools. No model ever decides whether
+a purchase is allowed or pays: that's the policy engine and you.
 """
 from __future__ import annotations
 
@@ -23,6 +19,25 @@ FRONTIER_PROVIDER = os.getenv("WARDEN_FRONTIER_PROVIDER", "anthropic")  # anthro
 FRONTIER_MODEL = os.getenv("WARDEN_FRONTIER_MODEL", "claude-sonnet-5-5")
 
 
+# Shown in the dashboard and README. Keep in sync with the functions below.
+ROLES = [
+    {"task": "Understand your request", "by": "local", "fallback": "rules", "fn": "parse_intent"},
+    {"task": "Pick the best match", "by": "local", "fallback": "cheapest in stock", "fn": "pick_product"},
+    {"task": "Tell the product category", "by": "rules, then local", "fallback": "unknown: you approve",
+     "fn": "categories.classify"},
+    {"task": "Research open questions", "by": "frontier (redacted, no tools)", "fallback": "local",
+     "fn": "frontier_research"},
+    {"task": "Allow, ask or deny", "by": "policy engine", "fallback": None, "fn": "policy.evaluate"},
+    {"task": "Approve and pay", "by": "you", "fallback": None, "fn": None},
+]
+
+RULES = "rules"
+
+
+def local_label() -> str:
+    return f"local · {LOCAL_MODEL}"
+
+
 def _post(url: str, body: dict, headers: dict, timeout: int = 60) -> dict:
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers}
@@ -32,6 +47,9 @@ def _post(url: str, body: dict, headers: dict, timeout: int = 60) -> dict:
 
 # ---------------------------------------------------------------- local ----
 def local_chat(system: str, user: str, timeout: int = 60) -> str | None:
+    """One-shot chat with the local model, or None if it isn't running."""
+    if not local_status()["reachable"]:
+        return None
     try:
         r = _post(
             f"{LOCAL_URL.rstrip('/')}/chat/completions",
@@ -64,7 +82,7 @@ def _local_status() -> dict:
                 "available": [m.get("id") for m in data.get("data", [])][:20]}
     except Exception:
         return {"reachable": False, "url": LOCAL_URL, "model": LOCAL_MODEL,
-                "note": "Using built-in rule parser. Start Ollama/LM Studio to use a local model."}
+                "note": "Not running: rules handle its jobs. Start Ollama or LM Studio to use it."}
 
 
 # ------------------------------------------------------------- intent -----
@@ -128,10 +146,26 @@ def parse_intent(text: str) -> tuple[dict, str]:
                 d = json.loads(m.group(0))
                 base = rule_parse(text)
                 base.update({k: v for k, v in d.items() if k in base and v not in ("", None)})
-                return base, "local-model"
+                return base, local_label()
             except json.JSONDecodeError:
                 pass
-    return rule_parse(text), "rule-parser"
+    return rule_parse(text), RULES
+
+
+# --------------------------------------------------------------- pick ------
+PICK_SYSTEM = "Pick the product that best matches the shopping request. Reply with its number only."
+
+
+def pick_product(request: str, candidates: list) -> tuple[int, str]:
+    """Index of the best match among `candidates` (cheapest first) and who chose it."""
+    shown = candidates[:10]
+    if len(shown) > 1:
+        listing = "\n".join(f"{i + 1}. {p.name} - ${p.price:.2f}" for i, p in enumerate(shown))
+        raw = local_chat(PICK_SYSTEM, f"Request: {request}\n\n{listing}", timeout=30)
+        m = re.search(r"\d+", raw or "")
+        if m and 1 <= int(m.group()) <= len(shown):
+            return int(m.group()) - 1, local_label()
+    return 0, f"{RULES} · cheapest"
 
 
 # ------------------------------------------------------------ frontier ----

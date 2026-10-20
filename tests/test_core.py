@@ -54,7 +54,7 @@ def test_risk_dial():
 
 # ---- end to end ------------------------------------------------------------
 def test_buy_chair_needs_approval_then_orders(hub):
-    hub.set_policy({"payment_mode": "pay"})
+    hub.set_policy({"pay_merchants": ["demo-store"]})
     r = hub.submit_text("buy a chair from staples")
     assert r["status"] == "awaiting_approval"
     o = hub.decide(r["approval_id"], True)
@@ -63,13 +63,13 @@ def test_buy_chair_needs_approval_then_orders(hub):
 
 
 def test_auto_buy_small_at_guarded(hub):
-    hub.set_policy({"risk_level": 2, "payment_mode": "pay"})
+    hub.set_policy({"risk_level": 2, "pay_merchants": ["demo-store"]})
     assert hub.submit_text("buy gel pens")["status"] == "ordered"
 
 
 def test_grill_monitor_buys_on_sale(hub):
     hub.set_policy({"risk_level": 4, "max_per_transaction": 400, "daily_cap": 500, "monthly_cap": 1000,
-                    "payment_mode": "pay"})
+                    "pay_merchants": ["demo-store"]})
     r = hub.submit_text("buy the propane grill when it's 25% off")
     assert r["status"] == "monitoring" and r["product"]["sku"] == "GRL-400"
     assert hub.tick_monitors() == []

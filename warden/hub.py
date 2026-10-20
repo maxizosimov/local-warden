@@ -98,8 +98,6 @@ class Hub:
                 if k in Policy.__dataclass_fields__:
                     setattr(self.policy, k, v)
             self.policy.risk_level = max(0, min(4, int(self.policy.risk_level)))
-            if self.policy.payment_mode not in ("handoff", "pay"):
-                self.policy.payment_mode = before["payment_mode"]
             self.policy.save(self.policy_path)
             changed = {k: [before[k], v] for k, v in updates.items() if k in before and before[k] != v}
             self.log("policy_changed", actor, changes=changed)
@@ -120,9 +118,12 @@ class Hub:
         return REGISTRY["demo-store"], note
 
     @staticmethod
-    def _pick(products: list[Product], max_price: float | None) -> Product | None:
+    def _pick(text: str, products: list[Product], max_price: float | None) -> tuple[Product | None, str]:
         ok = [p for p in products if p.in_stock and (max_price is None or p.price <= max_price)]
-        return ok[0] if ok else None
+        if not ok:
+            return None, ""
+        i, by = models.pick_product(text, ok)
+        return ok[i], by
 
     # ----------------------------------------------------- entry points ----
     def submit_text(self, text: str, actor: str = "user") -> dict:
@@ -131,7 +132,7 @@ class Hub:
                          time.time(), text, json.dumps(parsed), parser, "received", "")
         self.log("task_received", actor, task_id=tid, text=text, parsed=parsed, parser=parser)
         handler = {"buy": self._do_buy, "monitor": self._do_monitor, "research": self._do_research}
-        result = handler.get(parsed["type"], self._do_buy)(tid, parsed)
+        result = handler.get(parsed["type"], self._do_buy)(tid, parsed, text)
         status = result.get("status", "done")
         self._exec("UPDATE tasks SET status=?, result=? WHERE id=?", status, json.dumps(result), tid)
         return {"task_id": tid, "parsed": parsed, "parser": parser, **result}
@@ -179,17 +180,18 @@ class Hub:
                              actor=agent_id, reason=reason, price_verified=verified)
 
     # ------------------------------------------------------- handlers ------
-    def _do_buy(self, tid: int, parsed: dict) -> dict:
+    def _do_buy(self, tid: int, parsed: dict, text: str) -> dict:
         adapter, note = self._adapter_for(parsed.get("merchant"))
         found = adapter.search(parsed["query"])
-        p = self._pick(found, parsed.get("max_price"))
+        p, picked_by = self._pick(text, found, parsed.get("max_price"))
         if not p:
             self.log("no_match", task_id=tid, query=parsed["query"], candidates=len(found))
             return {"status": "no_match", "message": f"No in-policy match for '{parsed['query']}'.",
                     "candidates": [x.to_dict() for x in found[:5]]}
-        return self._propose(p, parsed.get("quantity", 1), "local", tid, parsed.get("merchant"), note=note)
+        r = self._propose(p, parsed.get("quantity", 1), "local", tid, parsed.get("merchant"), note=note)
+        return {**r, "picked_by": picked_by}
 
-    def _do_monitor(self, tid: int, parsed: dict) -> dict:
+    def _do_monitor(self, tid: int, parsed: dict, text: str) -> dict:
         adapter, note = self._adapter_for(parsed.get("merchant"))
         found = adapter.search(parsed["query"])
         if not found:
@@ -201,8 +203,7 @@ class Hub:
         return {"status": "monitoring", "monitor_id": mid, "product": p.to_dict(), "note": note,
                 "message": f"Watching {p.name} (now ${p.price:.2f})."}
 
-    def _do_research(self, tid: int, parsed: dict) -> dict:
-        task = self.db.execute("SELECT text FROM tasks WHERE id=?", (tid,)).fetchone()["text"]
+    def _do_research(self, tid: int, parsed: dict, task: str) -> dict:
         if not self.policy.frontier_research_allowed:
             answer, sent, used = "(frontier research disabled by policy)", "", "none"
         else:
@@ -489,7 +490,8 @@ class Hub:
             "orders": self._rows("SELECT * FROM orders ORDER BY id DESC LIMIT 100"),
             "monitors": self._rows("SELECT * FROM monitors ORDER BY id DESC LIMIT 100"),
             "tasks": self._rows("SELECT * FROM tasks ORDER BY id DESC LIMIT 30"),
-            "models": {"local": models.local_status(), "frontier": models.frontier_status()},
+            "models": {"local": models.local_status(), "frontier": models.frontier_status(),
+                       "roles": models.ROLES},
             "ledger_ok": self.ledger.verify(),
             "track_record": self.track_record(),
         }

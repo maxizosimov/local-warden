@@ -99,7 +99,7 @@ def get_policy() -> dict:
     """What you're allowed to do right now: risk level, payment mode (handoff = the user
     pays), per-purchase max, budget left today and this month, blocked merchants and categories."""
     p = _call("GET", "/api/policy")
-    keep = ("risk_level", "risk_name", "risk_description", "payment_mode", "pay_merchants",
+    keep = ("risk_level", "risk_name", "risk_description", "pay_merchants",
             "max_per_transaction", "auto_approve_under", "daily_cap", "monthly_cap", "remaining",
             "allowed_merchants", "blocked_merchants", "blocked_categories", "require_approval_categories")
     return {k: p[k] for k in keep if k in p}

@@ -75,6 +75,8 @@ def test_suggestion_uses_recent_proposals(hub):
     assert [s["merchant"] for s in hub.track_record()["suggestions"]] == ["demo-store"]
 
 
-def test_invalid_payment_mode_ignored(hub):
-    hub.set_policy({"payment_mode": "yolo"})
-    assert hub.policy.payment_mode == "handoff"
+def test_old_payment_mode_setting_is_ignored(tmp_path):
+    from warden.policy import Policy
+    (tmp_path / "policy.json").write_text('{"risk_level": 2, "payment_mode": "pay"}')
+    pol = Policy.load(tmp_path / "policy.json")
+    assert pol.risk_level == 2 and not pol.pays_at("demo-store")

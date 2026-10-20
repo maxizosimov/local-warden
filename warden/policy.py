@@ -41,6 +41,14 @@ class Policy:
     require_approval_categories: list[str] = field(default_factory=list)
     frontier_research_allowed: bool = True  # frontier models may research, never execute
     frontier_redact_pii: bool = True
+    # "handoff": Warden prepares the cart and you pay; nothing is charged by Warden.
+    # "pay": Warden pays with a single-use token. pay_merchants turns on "pay" for
+    # individual merchants once the agent has earned it there.
+    payment_mode: str = "handoff"
+    pay_merchants: list[str] = field(default_factory=list)
+
+    def pays_at(self, merchant: str) -> bool:
+        return self.payment_mode == "pay" or merchant.lower() in [x.lower() for x in self.pay_merchants]
 
     @classmethod
     def load(cls, path: str | Path) -> "Policy":
@@ -70,7 +78,7 @@ class PurchaseIntent:
     price: float
     quantity: int = 1
     category: str = "general"
-    source: str = "local"  # which model produced this intent: local | frontier | user
+    source: str = "local"  # who produced this intent, set by the hub: local | agent | frontier | user
 
     @property
     def total(self) -> float:

@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS monitors (id INTEGER PRIMARY KEY, ts REAL, task_id IN
     action TEXT, status TEXT, last_price REAL, history TEXT, checked REAL, triggered_ts REAL);
 """
 
+# Handoff-mode columns, added to older databases on startup.
+ORDER_COLUMNS = {"category": "TEXT", "expected_total": "REAL", "paid_total": "REAL",
+                 "outcome": "TEXT", "cart_url": "TEXT", "rationale": "TEXT"}
+
+TRUST_MIN_PROPOSALS = 5      # decided handoffs at a merchant before suggesting "let Warden pay"
+AS_PROPOSED_TOLERANCE = 0.01  # paid within 1% of the proposal counts as "as proposed"
+
 
 class Hub:
     def __init__(self, data_dir: str | Path = "data"):
@@ -41,6 +48,11 @@ class Hub:
         self.db = sqlite3.connect(self.dir / "state.db", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        have = {r["name"] for r in self.db.execute("PRAGMA table_info(orders)")}
+        for col, typ in ORDER_COLUMNS.items():
+            if col not in have:
+                self.db.execute(f"ALTER TABLE orders ADD COLUMN {col} {typ}")
+        self.db.commit()
         self.vault = MockVault()
         self.lock = threading.RLock()
         self._stop = threading.Event()
@@ -72,7 +84,8 @@ class Hub:
         now = datetime.now()
         day0 = datetime(now.year, now.month, now.day).timestamp()
         mon0 = datetime(now.year, now.month, 1).timestamp()
-        q = "SELECT COALESCE(SUM(total),0) s FROM orders WHERE status!='cancelled' AND ts>=?"
+        # Open handoffs reserve budget at their expected total; skipped ones release it.
+        q = "SELECT COALESCE(SUM(total),0) s FROM orders WHERE status NOT IN ('cancelled','skipped') AND ts>=?"
         return (round(self.db.execute(q, (day0,)).fetchone()["s"], 2), round(self.db.execute(q, (mon0,)).fetchone()["s"], 2))
 
     def set_policy(self, updates: dict, actor: str = "user") -> Policy:
@@ -82,6 +95,8 @@ class Hub:
                 if k in Policy.__dataclass_fields__:
                     setattr(self.policy, k, v)
             self.policy.risk_level = max(0, min(4, int(self.policy.risk_level)))
+            if self.policy.payment_mode not in ("handoff", "pay"):
+                self.policy.payment_mode = before["payment_mode"]
             self.policy.save(self.policy_path)
             changed = {k: [before[k], v] for k, v in updates.items() if k in before and before[k] != v}
             self.log("policy_changed", actor, changes=changed)
@@ -113,16 +128,16 @@ class Hub:
         self._exec("UPDATE tasks SET status=?, result=? WHERE id=?", status, json.dumps(result), tid)
         return {"task_id": tid, "parsed": parsed, "parser": parser, **result}
 
-    def submit_intent(self, d: dict, agent_id: str) -> dict:
+    def submit_intent(self, d: dict, agent_id: str, source: str = "agent") -> dict:
         """For external agents (your own local agent, scripts, etc.) to request a purchase.
-        The hub - not the agent - looks up the live price and decides."""
+        The hub - not the agent - looks up the live price, sets the source and decides."""
         adapter, note = self._adapter_for(d.get("merchant"))
         p = adapter.get_product(d.get("sku", ""))
         if not p:
             self.log("intent_rejected", agent_id, reason="unknown sku", intent=d)
             return {"status": "error", "error": "unknown sku"}
         self.log("intent_received", agent_id, intent=d)
-        return self._propose(p, int(d.get("quantity", 1)), d.get("source", "local"), None,
+        return self._propose(p, int(d.get("quantity", 1)), source, None,
                              d.get("merchant"), actor=agent_id, note=note)
 
     # ------------------------------------------------------- handlers ------
@@ -186,10 +201,11 @@ class Hub:
                 self.notify("Approval needed", f"{p.name} x{qty} for ${intent.total:.2f}")
                 return {**base, "status": "awaiting_approval", "approval_id": aid,
                         "message": f"Waiting for your OK: {p.name} for ${intent.total:.2f}."}
-            order = self._execute(p, qty, tid, requested, approved_by="policy:auto")
+            order = self._execute(p, qty, tid, requested, approved_by="policy:auto", why=dec.reasons)
             return {**base, **order}
 
-    def _execute(self, p: Product, qty: int, tid: int | None, requested: str | None, approved_by: str) -> dict:
+    def _execute(self, p: Product, qty: int, tid: int | None, requested: str | None, approved_by: str,
+                 why: list[str] | None = None) -> dict:
         adapter = REGISTRY[p.merchant]
         live = adapter.get_product(p.sku)
         if not live or live.price > p.price * 1.02:  # price moved up since the decision: stop
@@ -197,6 +213,8 @@ class Hub:
                      now=live.price if live else None)
             return {"status": "aborted", "message": "Price changed since approval - not purchased."}
         total = round(live.price * qty, 2)
+        if not self.policy.pays_at(adapter.name):
+            return self._handoff(adapter, live, qty, total, tid, requested, approved_by, why or [])
         tok = self.vault.mint(adapter.name, total)
         self.log("payment_token_minted", "vault", merchant=adapter.name, limit=tok.max_amount, task_id=tid)
         res = adapter.place_order(live.sku, qty, tok.token)
@@ -209,14 +227,96 @@ class Hub:
             return {"status": "failed", "message": res.error}
         oid = self._exec(
             "INSERT INTO orders (ts,task_id,merchant,requested_merchant,sku,item,qty,unit_price,total,"
-            "merchant_order_id,status,approved_by,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "merchant_order_id,status,approved_by,updated,category) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             time.time(), tid, adapter.name, requested, live.sku, live.name, qty, live.price, total,
-            res.merchant_order_id, res.status, approved_by, time.time())
+            res.merchant_order_id, res.status, approved_by, time.time(), live.category)
         self.log("order_placed", "executor", order_id=oid, merchant=adapter.name, item=live.name,
                  qty=qty, total=total, merchant_order_id=res.merchant_order_id, approved_by=approved_by)
         self.notify("Order placed", f"{live.name} x{qty} - ${total:.2f} ({res.merchant_order_id})")
         return {"status": "ordered", "order_id": oid, "merchant_order_id": res.merchant_order_id,
                 "message": f"Ordered {live.name} for ${total:.2f}."}
+
+    # --------------------------------------------------------- handoff -----
+    def _handoff(self, adapter, live: Product, qty: int, total: float, tid: int | None,
+                 requested: str | None, approved_by: str, why: list[str]) -> dict:
+        """No-payment mode: record what the agent would have bought and hand the
+        checkout to the human. No payment token is minted."""
+        cart = adapter.cart_url(live.sku, qty)
+        oid = self._exec(
+            "INSERT INTO orders (ts,task_id,merchant,requested_merchant,sku,item,qty,unit_price,total,"
+            "merchant_order_id,status,approved_by,updated,category,expected_total,cart_url,rationale) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            time.time(), tid, adapter.name, requested, live.sku, live.name, qty, live.price, total,
+            "", "handed_off", approved_by, time.time(), live.category, total, cart, json.dumps(why))
+        self.log("handoff_created", "executor", order_id=oid, merchant=adapter.name, item=live.name,
+                 qty=qty, expected_total=total, cart_url=cart, approved_by=approved_by)
+        self.notify("Ready for you to pay", f"{live.name} x{qty} - ${total:.2f} at {adapter.name}")
+        return {"status": "handed_off", "order_id": oid, "cart_url": cart, "expected_total": total,
+                "message": f"Cart ready: {live.name} for ${total:.2f}. You pay, Warden records it."}
+
+    def mark_paid(self, oid: int, amount: float, merchant_order_id: str = "", actor: str = "user") -> dict:
+        with self.lock:
+            o = self.db.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
+            if not o or o["status"] != "handed_off":
+                return {"status": "error", "message": "Not waiting for payment."}
+            amount = round(float(amount), 2)
+            if amount <= 0:
+                return {"status": "error", "message": "Amount must be positive."}
+            dev = abs(amount - o["expected_total"]) / o["expected_total"]
+            outcome = "as_proposed" if dev <= AS_PROPOSED_TOLERANCE else "changed"
+            mid = merchant_order_id or REGISTRY[o["merchant"]].record_manual_order(o["sku"], o["qty"])
+            self._exec("UPDATE orders SET status='placed', total=?, paid_total=?, outcome=?, "
+                       "merchant_order_id=?, updated=? WHERE id=?",
+                       amount, amount, outcome, mid, time.time(), oid)
+            self.log("handoff_paid", actor, order_id=oid, expected_total=o["expected_total"],
+                     paid_total=amount, outcome=outcome, merchant_order_id=mid)
+            return {"status": "placed", "outcome": outcome, "merchant_order_id": mid,
+                    "message": f"Recorded ${amount:.2f} paid ({outcome.replace('_', ' ')})."}
+
+    def skip_handoff(self, oid: int, actor: str = "user") -> dict:
+        with self.lock:
+            o = self.db.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
+            if not o or o["status"] != "handed_off":
+                return {"status": "error", "message": "Not waiting for payment."}
+            self._exec("UPDATE orders SET status='skipped', outcome='skipped', updated=? WHERE id=?",
+                       time.time(), oid)
+            self.log("handoff_skipped", actor, order_id=oid, expected_total=o["expected_total"])
+            return {"status": "skipped", "message": "Skipped. Budget released."}
+
+    def track_record(self) -> dict:
+        """How often the human paid what the agent proposed, overall and per merchant."""
+        rows = self._rows("SELECT * FROM orders WHERE expected_total IS NOT NULL ORDER BY id ASC")
+
+        def summarize(rs: list[dict]) -> dict:
+            paid = [r for r in rs if r["outcome"] in ("as_proposed", "changed")]
+            devs = [abs(r["paid_total"] - r["expected_total"]) / r["expected_total"] * 100 for r in paid]
+            return {
+                "proposed": len(rs),
+                "open": sum(r["status"] == "handed_off" for r in rs),
+                "as_proposed": sum(r["outcome"] == "as_proposed" for r in rs),
+                "changed": sum(r["outcome"] == "changed" for r in rs),
+                "skipped": sum(r["outcome"] == "skipped" for r in rs),
+                "avg_price_dev_pct": round(sum(devs) / len(devs), 2) if devs else None,
+                "max_paid": max((r["paid_total"] for r in paid), default=None),
+            }
+
+        merchants = {}
+        for r in rows:
+            merchants.setdefault(r["merchant"], []).append(r)
+        per = {m: summarize(rs) for m, rs in merchants.items()}
+        suggestions = []
+        for m, rs in merchants.items():
+            recent = [r for r in rs if r["outcome"]][-TRUST_MIN_PROPOSALS:]
+            if (len(recent) == TRUST_MIN_PROPOSALS and all(r["outcome"] == "as_proposed" for r in recent)
+                    and not self.policy.pays_at(m)):
+                largest = max(r["paid_total"] for r in recent)
+                suggestions.append({
+                    "merchant": m,
+                    "message": f"You paid the agent's last {len(recent)} proposals at {m} unchanged "
+                               f"(largest ${largest:.2f}). Let Warden pay there?",
+                })
+        return {"overall": summarize(rows), "merchants": per, "suggestions": suggestions,
+                "min_proposals": TRUST_MIN_PROPOSALS}
 
     # ------------------------------------------------------- approvals -----
     def decide(self, aid: int, approve: bool, actor: str = "user") -> dict:
@@ -239,7 +339,7 @@ class Hub:
                 self.log("execution_aborted", reason="hard limit at approval time", decision=dec.to_dict())
                 return {"status": "denied", "message": " ".join(dec.reasons)}
             return self._execute(p, it["quantity"], row["task_id"], it.get("requested_merchant"),
-                                 approved_by=actor)
+                                 approved_by=actor, why=json.loads(row["reasons"]))
 
     # -------------------------------------------------------- monitors -----
     def add_monitor(self, merchant, sku, name, max_price, min_discount_pct, qty=1, action="buy", tid=None) -> int:
@@ -320,4 +420,5 @@ class Hub:
             "tasks": self._rows("SELECT * FROM tasks ORDER BY id DESC LIMIT 30"),
             "models": {"local": models.local_status(), "frontier": models.frontier_status()},
             "ledger_ok": self.ledger.verify(),
+            "track_record": self.track_record(),
         }

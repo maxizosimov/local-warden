@@ -63,6 +63,16 @@ class MerchantAdapter(ABC):
     def order_status(self, merchant_order_id: str) -> str:
         return "unknown"
 
+    def cart_url(self, sku: str, quantity: int) -> str:
+        """Where the human goes to pay in handoff mode."""
+        p = self.get_product(sku)
+        return p.url if p else ""
+
+    def record_manual_order(self, sku: str, quantity: int) -> str:
+        """The human paid at the store themselves. Return a merchant order id if
+        the adapter can track it, else ""."""
+        return ""
+
 
 from .demo import DemoStore  # noqa: E402
 from .web import WebPriceReader  # noqa: E402

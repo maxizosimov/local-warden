@@ -86,6 +86,14 @@ class DemoStore(MerchantAdapter):
         self.orders[oid] = {"created": time.time(), "sku": sku, "qty": quantity}
         return OrderResult(ok=True, merchant_order_id=oid, status="placed", eta_days=3)
 
+    def cart_url(self, sku: str, quantity: int) -> str:
+        return f"/demo/cart/{sku}?qty={quantity}"
+
+    def record_manual_order(self, sku: str, quantity: int) -> str:
+        oid = "DEMO-" + uuid.uuid4().hex[:8].upper()
+        self.orders[oid] = {"created": time.time(), "sku": sku, "qty": quantity}
+        return oid
+
     def order_status(self, merchant_order_id: str) -> str:
         o = self.orders.get(merchant_order_id)
         if not o:

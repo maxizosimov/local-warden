@@ -115,6 +115,10 @@ button{font:500 12.5px Inter,sans-serif;cursor:pointer;border-radius:7px;transit
 .b.placed,.b.processing{color:var(--blue);background:rgba(96,165,250,.09)}
 .b.denied,.b.deny,.b.rejected,.b.cancelled,.b.failed,.b.aborted,.b.no_match{color:var(--down);background:var(--down-bg);border-color:transparent}
 .b.agent{color:var(--agent);background:var(--agent-bg);border-color:transparent}
+.b.handed_off{color:var(--agent);background:var(--agent-bg);border-color:transparent}
+.b.as_proposed{color:var(--up);background:var(--up-bg);border-color:transparent}
+.b.changed{color:var(--amber);background:var(--amber-bg);border-color:transparent}
+.b.skipped{color:var(--mute)}
 
 /* tables */
 table{width:100%;border-collapse:collapse}
@@ -140,6 +144,38 @@ svg.spark{width:96px;height:26px;display:block}
 .ap .why li::before{content:"→ ";color:var(--faint)}
 .ap .acts{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
 
+/* handoffs */
+.ho{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px;border-bottom:1px solid var(--line);position:relative}
+.ho:last-child{border-bottom:0}
+.ho::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;border-radius:2px;background:var(--agent)}
+.ho .amt{font:500 20px var(--monof);font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-align:right}
+.ho .acts{display:flex;gap:6px;justify-content:flex-end;align-items:center;margin-top:8px;flex-wrap:wrap}
+.ho input{width:92px;height:26px;padding:0 8px;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--ink);font:12px var(--monof);outline:0;text-align:right}
+.ho input:focus{border-color:rgba(139,124,246,.55)}
+a.btn{display:inline-flex;align-items:center;text-decoration:none}
+@media (max-width:600px){.ho,.ap{grid-template-columns:1fr}.ho .amt,.ap .amt{text-align:left}.ho .acts,.ap .acts{justify-content:flex-start}}
+
+/* payment mode */
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin:0 14px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)}
+.seg button{height:28px;border:0;background:transparent;color:var(--mute);font:500 12px Inter,sans-serif;border-radius:6px}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
+.segnote{font-size:11.5px;color:var(--mute);margin:-4px 14px 12px}
+
+/* track record */
+.tr{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line)}
+.tr>div{padding:12px 14px;border-right:1px solid var(--line);min-width:0}.tr>div:last-child{border-right:0}
+.tr .l{font-size:10.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.tr .v{font:500 18px var(--monof);font-variant-numeric:tabular-nums;margin-top:2px}
+.sugg .btn{flex:none;white-space:nowrap}
+.sugg{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--up-bg);font-size:12px;color:var(--ink2)}
+
+/* token gate */
+.gate{position:fixed;inset:0;z-index:20;display:none;place-items:center;background:rgba(9,9,11,.92);padding:16px}
+.gate.show{display:grid}
+.gate .c{max-width:440px;width:100%;border:1px solid var(--line2);border-radius:12px;background:var(--panel);padding:22px}
+.gate input{width:100%;height:34px;margin:12px 0;padding:0 10px;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--ink);font:12.5px var(--monof);outline:0}
+
 /* risk dial */
 .dialwrap{padding:16px 14px 6px}
 .rl{display:flex;align-items:baseline;justify-content:space-between}
@@ -156,10 +192,11 @@ svg.spark{width:96px;height:26px;display:block}
 .limits summary::-webkit-details-marker{display:none}
 .limits summary::after{content:"+";font:14px var(--monof);color:var(--mute)}
 .limits[open] summary::after{content:"−"}
-.lf{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 14px 14px}
+.lf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;padding:0 14px 14px}
 .lf label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--mute)}
 .lf .w{grid-column:1/-1}
 .lf input[type=number],.lf input[type=text],.lf input:not([type]){height:32px;padding:0 10px;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--ink);font:12.5px var(--monof);outline:0}
+.lf input{min-width:0;width:100%}
 .lf input:focus{border-color:rgba(139,124,246,.55)}
 .tog{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;color:var(--ink2)!important;font-size:12px!important;cursor:pointer}
 .tog input{appearance:none;width:28px;height:16px;border-radius:9px;background:var(--line2);position:relative;cursor:pointer;flex:none;transition:.15s;margin:0}
@@ -178,7 +215,7 @@ svg.spark{width:96px;height:26px;display:block}
 .ev .t{margin-left:auto;font:11px var(--monof);color:var(--faint);white-space:nowrap}
 .ev .d{font-size:12px;color:var(--ink2);word-break:break-word;margin-top:1px}
 .ev .h{font:10px var(--monof);color:var(--faint);margin-top:2px}
-.k-order_placed i{background:var(--up)!important}.k-policy_decision i{background:var(--agent)!important}
+.k-order_placed i,.k-handoff_paid i{background:var(--up)!important}.k-handoff_created i{background:var(--agent)!important}.k-policy_decision i{background:var(--agent)!important}
 .k-monitor_triggered i,.k-notify i{background:var(--amber)!important}.k-payment_token_minted i{background:var(--blue)!important}
 .k-approval_rejected i,.k-execution_aborted i,.k-order_failed i{background:var(--down)!important}
 
@@ -213,12 +250,17 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
             </form>
             <div class="foot">
               <span class="model" id="modelFoot"></span>
-              <span style="margin-left:auto">Payments execute locally · policy-gated</span>
+              <span style="margin-left:auto" id="modeFoot"></span>
             </div>
           </div>
           <div class="sugs" id="chips"></div>
           <div class="trace" id="result"></div>
         </div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Ready for you to pay</h3><span class="count" id="hoCount">0</span><span class="right sub">agent prepared · you pay</span></div>
+        <div id="handoffs"></div>
       </div>
 
       <div class="panel" id="approvalsCard">
@@ -233,7 +275,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
 
       <div class="panel">
         <div class="ph"><h3>Transactions</h3><span class="count" id="ordCount">0</span>
-          <span class="right"><a class="btn ghost sm" style="display:inline-flex;align-items:center;text-decoration:none" href="/api/export/orders.csv">Export CSV</a></span></div>
+          <span class="right"><button class="btn ghost sm" type="button" id="csv">Export CSV</button></span></div>
         <div class="scroll"><table id="orders"></table></div>
       </div>
 
@@ -252,6 +294,8 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
           <div class="dlabels"><span>Observe</span><span>Autonomous</span></div>
           <div class="ddesc" id="dialDesc"></div>
         </div>
+        <div class="seg" id="seg"><button type="button" data-mode="handoff">Handoff · you pay</button><button type="button" data-mode="pay">Warden pays</button></div>
+        <div class="segnote" id="segNote"></div>
         <details class="limits">
           <summary>Hard limits</summary>
           <form class="lf" id="limits">
@@ -262,11 +306,17 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
             <label class="w">Approved merchants<input name="allowed_merchants" type="text"></label>
             <label class="w">Blocked merchants<input name="blocked_merchants" type="text"></label>
             <label class="w">Blocked categories<input name="blocked_categories" type="text"></label>
+            <label class="w">Warden pays at (trusted merchants)<input name="pay_merchants" type="text"></label>
             <label class="w tog"><input type="checkbox" name="frontier_research_allowed"> Frontier model may research (never pays)</label>
             <label class="w tog"><input type="checkbox" name="frontier_redact_pii"> Redact personal info before it leaves device</label>
             <button class="btn w" style="height:34px">Save limits</button>
           </form>
         </details>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Track record</h3><span class="right sub">proposals you paid</span></div>
+        <div id="track"></div>
       </div>
 
       <div class="panel">
@@ -277,20 +327,45 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="gate" id="gate"><form class="c" id="gateForm">
+  <div class="logo"><span class="mark"></span>Warden</div>
+  <p class="sub" style="margin:12px 0 0">Open the link the hub printed in your terminal, or paste the owner token from <span class="mono">data/owner_token</span>. Don't give this token to your agent; it gets <span class="mono">data/agent_token</span>.</p>
+  <input id="gateTok" placeholder="owner token" autocomplete="off">
+  <button class="btn" style="width:100%">Unlock</button>
+</form></div>
 
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const money = n => n == null ? "—" : "$" + Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 const ago = ts => { const s = Date.now()/1000 - ts; return s<60? Math.floor(s)+"s" : s<3600? Math.floor(s/60)+"m" : s<86400? Math.floor(s/3600)+"h" : Math.floor(s/86400)+"d"; };
+// Owner token: arrives once in the URL fragment (never sent to the server in a URL), then kept in this browser.
+let OWNER = "";
+try { OWNER = localStorage.getItem("warden_owner") || ""; } catch(e){}
+const setOwner = t => { OWNER = t; try { localStorage.setItem("warden_owner", t); } catch(e){} };
+const takeHashToken = () => { const t = new URLSearchParams(location.hash.slice(1)).get("owner");
+  if (t){ setOwner(t); history.replaceState(null, "", location.pathname); } return !!t; };
+takeHashToken();
+addEventListener("hashchange", () => { if (takeHashToken()){ refresh(); loadCatalog(); } });
+const raw = (path, opts={}) => fetch(path, {...opts, headers:{"Content-Type":"application/json","X-Warden-Owner":OWNER},
+  body: opts.body ? JSON.stringify(opts.body) : undefined});
 const api = async (path, opts={}) => {
-  const r = await fetch(path, {headers:{"Content-Type":"application/json"}, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined});
+  const r = await raw(path, opts);
   const j = await r.json().catch(()=>({}));
+  if (r.status === 401){ $("#gate").classList.add("show"); throw new Error("owner token required"); }
   if (!r.ok) throw new Error(j.detail || r.statusText);
+  $("#gate").classList.remove("show");
   return j;
 };
 const toast = msg => { const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),3000); };
 const label = s => String(s||"").replace(/_/g," ");
+
+$("#gateForm").onsubmit = e => { e.preventDefault(); setOwner($("#gateTok").value.trim()); refresh(); loadCatalog(); };
+$("#csv").onclick = async () => { const r = await raw("/api/export/orders.csv"); if (!r.ok) return toast("Export failed");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = "warden-orders.csv"; a.click(); };
+$("#seg").onclick = async e => { const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.mode === "pay" && !confirm("Warden pays everywhere inside your limits.\nPayments are simulated (mock vault) in this MVP. Continue?")) return;
+  await api("/api/policy",{method:"PUT",body:{payment_mode:b.dataset.mode}}); toast(b.dataset.mode==="pay"?"Warden pays (simulated)":"Handoff mode · you pay"); refresh(); };
 
 document.addEventListener("keydown", e => { if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); $("#cmd").focus(); } });
 
@@ -312,7 +387,7 @@ $("#limits").oninput = () => limitsDirty = true;
 $("#limits").onsubmit = async e => {
   e.preventDefault(); const f = new FormData(e.target), body = {};
   for (const k of ["max_per_transaction","auto_approve_under","daily_cap","monthly_cap"]) body[k] = +f.get(k);
-  for (const k of ["allowed_merchants","blocked_merchants","blocked_categories"]) body[k] = (f.get(k)||"").split(",").map(s=>s.trim()).filter(Boolean);
+  for (const k of ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"]) body[k] = (f.get(k)||"").split(",").map(s=>s.trim()).filter(Boolean);
   body.frontier_research_allowed = !!f.get("frontier_research_allowed"); body.frontier_redact_pii = !!f.get("frontier_redact_pii");
   await api("/api/policy",{method:"PUT",body}); limitsDirty=false; toast("Limits saved · change written to ledger"); refresh();
 };
@@ -334,6 +409,7 @@ function showResult(r){
   if (r.note) steps.push(["warn","route",esc(r.note)]);
   if (r.product) steps.push(["done","match",`${esc(r.product.name)} <span class="num">${money(r.product.price)}</span>`]);
   if (dec) steps.push([dec.outcome==="allow"?"done":dec.outcome==="deny"?"bad":"warn","policy",`<span class="b ${dec.outcome}">${label(dec.outcome)}</span> ${dec.reasons.map(esc).join(" ")}`]);
+  if (r.status==="handed_off") steps.push(["done","handoff",`cart ready for you to pay · <span class="num">${money(r.expected_total)}</span> · no card used <a class="btn ghost sm" style="margin-left:6px" href="${esc(r.cart_url)}" target="_blank" rel="noopener">Open cart</a>`]);
   if (r.status==="ordered") steps.push(["done","execute",`single-use token → order <span class="mono">${esc(r.merchant_order_id)}</span>`]);
   if (r.sent_to_frontier) steps.push(["done","research",`sent off-device (redacted): <span class="mono">"${esc(r.sent_to_frontier)}"</span>`]);
   let h = `<div class="head"><span class="b ${r.status}">${label(r.status)}</span><span class="msg">${esc(r.message||"")}</span></div>`;
@@ -346,7 +422,7 @@ function showResult(r){
 }
 
 document.addEventListener("click", async e => {
-  const b = e.target.closest("[data-buy],[data-ap],[data-sale],[data-watch],[data-unwatch]"); if (!b) return;
+  const b = e.target.closest("[data-buy],[data-ap],[data-sale],[data-watch],[data-unwatch],[data-paid],[data-skip],[data-trust]"); if (!b) return;
   try {
     if (b.dataset.buy){ const r = await api("/api/buy",{method:"POST",body:{merchant:"demo-store",sku:b.dataset.buy,quantity:1}}); toast(r.message||r.status); }
     if (b.dataset.ap){ const [id,act]=b.dataset.ap.split(":"); const r = await api(`/api/approvals/${id}/${act}`,{method:"POST"}); toast(r.message||label(r.status)); }
@@ -355,6 +431,11 @@ document.addEventListener("click", async e => {
     if (b.dataset.watch){ const pct = prompt("Trigger at what % off?", "20"); if(pct==null) return;
       const act = confirm("OK = buy automatically (still subject to policy)\nCancel = notify only") ? "buy":"notify";
       await api("/api/monitors",{method:"POST",body:{merchant:"demo-store",sku:b.dataset.watch,min_discount_pct:+pct,action:act}}); toast("Added to watchlist"); }
+    if (b.dataset.paid){ const amt = +$(`#amt-${b.dataset.paid}`).value;
+      const r = await api(`/api/orders/${b.dataset.paid}/paid`,{method:"POST",body:{amount:amt}}); toast(r.message||r.status); }
+    if (b.dataset.skip){ const r = await api(`/api/orders/${b.dataset.skip}/skip`,{method:"POST"}); toast(r.message||r.status); }
+    if (b.dataset.trust){ const pm = [...new Set([...(S.policy.pay_merchants||[]), b.dataset.trust])];
+      await api("/api/policy",{method:"PUT",body:{pay_merchants:pm}}); toast(`Warden now pays at ${b.dataset.trust} (simulated)`); }
     if (b.dataset.unwatch){ await api(`/api/monitors/${b.dataset.unwatch}`,{method:"DELETE"}); toast("Monitor stopped"); }
   } catch(err){ toast(err.message); }
   refresh();
@@ -384,6 +465,9 @@ function evText(e){
     case "monitor_triggered": return `monitor #${d.monitor_id} hit at ${money(d.price)} (−${d.discount}%)`;
     case "research": return `model ${d.model} · sent "${d.sent}"`;
     case "notify": return `${d.title}: ${d.body}`;
+    case "handoff_created": return `${d.item} ×${d.qty} · ${money(d.expected_total)} · cart handed to you`;
+    case "handoff_paid": return `order #${d.order_id}: you paid ${money(d.paid_total)} vs ${money(d.expected_total)} proposed · ${label(d.outcome)}`;
+    case "handoff_skipped": return `order #${d.order_id} skipped · ${money(d.expected_total)} released`;
     case "order_status": return `order #${d.order_id}: ${label(d.was)} → ${label(d.status)}`;
     default: return JSON.stringify(d).slice(0,160);
   }
@@ -396,10 +480,35 @@ function kpi(l, v, s, pct, extra=""){
 async function refresh(){
   try { S = await api("/api/state"); } catch(e){ return; }
   const p = S.policy, m = S.models;
+  const handoffs = S.orders.filter(o=>o.status==="handed_off");
   $("#pills").innerHTML =
     `<span class="st" title="${esc(m.local.url)}"><span class="dot ${m.local.reachable?"up":"amber"}"></span>${m.local.reachable?esc(m.local.model):"rule-parser"}</span>`+
     `<span class="st"><span class="dot ${m.frontier.configured&&p.frontier_research_allowed?"up":""}"></span>frontier ${m.frontier.configured?(p.frontier_research_allowed?"research":"off"):"unset"}</span>`+
     `<span class="st"><span class="dot ${S.ledger_ok.ok?"up":"down"}"></span>ledger ${S.ledger_ok.ok?"verified":"TAMPERED #"+S.ledger_ok.broken_at}</span>`;
+  const handoffMode = p.payment_mode !== "pay";
+  $("#modeFoot").textContent = handoffMode ? (p.pay_merchants.length ? `Handoff mode · Warden pays at ${p.pay_merchants.join(", ")}` : "Handoff mode · agent prepares, you pay") : "Warden pays · simulated single-use tokens";
+  document.querySelectorAll("#seg button").forEach(b=>b.classList.toggle("on", b.dataset.mode === (handoffMode?"handoff":"pay")));
+  $("#segNote").textContent = handoffMode ? "\u201CGoes through\u201D means the cart is prepared for you to pay. Nothing is charged." : "Payments use the mock vault in this MVP.";
+  $("#hoCount").textContent = handoffs.length;
+  $("#handoffs").innerHTML = handoffs.length ? handoffs.map(o=>`<div class="ho"><div><div class="name">${esc(o.item)} <span class="sub">×${o.qty}</span></div>
+      <div class="sub">${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?` · requested ${esc(o.requested_merchant)}`:""} · ${esc(o.approved_by.startsWith("policy")?"agent · policy":"approved by "+o.approved_by)} · ${ago(o.ts)} ago</div>
+      <ul class="why" style="margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)">${JSON.parse(o.rationale||"[]").map(r=>`<li>→ ${esc(r)}</li>`).join("")}</ul></div>
+      <div><div class="amt">${money(o.expected_total)}</div><div class="acts">
+        <a class="btn ghost sm" href="${esc(o.cart_url)}" target="_blank" rel="noopener">Open cart</a>
+        <button class="btn no sm" data-skip="${o.id}">Skip</button>
+        <input id="amt-${o.id}" type="number" step="0.01" value="${Number(o.expected_total).toFixed(2)}" aria-label="Amount charged">
+        <button class="btn ok sm" data-paid="${o.id}">Mark paid</button></div></div></div>`).join("")
+    : `<div class="empty">Nothing to pay. Allowed purchases land here with the cart ready; you pay at the store, then record it.</div>`;
+
+  const T = S.track_record, o = T.overall, dec = o.as_proposed + o.changed + o.skipped;
+  $("#track").innerHTML = `<div class="tr">
+      <div><div class="l">As proposed</div><div class="v">${o.as_proposed}<small class="sub"> / ${dec}</small></div></div>
+      <div><div class="l">Price diff</div><div class="v">${o.avg_price_dev_pct==null?"—":"±"+o.avg_price_dev_pct+"%"}</div></div>
+      <div><div class="l">Skipped</div><div class="v">${o.skipped}</div></div></div>` +
+    T.suggestions.map(s=>`<div class="sugg"><span>${esc(s.message)}</span><button class="btn ok sm" data-trust="${esc(s.merchant)}">Let Warden pay</button></div>`).join("") +
+    (Object.keys(T.merchants).length ? `<div class="scroll"><table><thead><tr><th>Merchant</th><th class="r">As proposed</th><th class="r">Changed</th><th class="r">Skipped</th></tr></thead><tbody>` +
+      Object.entries(T.merchants).map(([m,t])=>`<tr><td>${esc(m)}${p.pay_merchants.includes(m)?` <span class="b agent">pays</span>`:""}${t.open?`<div class="sub">${t.open} open</div>`:""}</td><td class="r num"><span class="up">${t.as_proposed}</span><span class="sub"> / ${t.proposed - t.open}</span></td><td class="r num">${t.changed}</td><td class="r num">${t.skipped}</td></tr>`).join("") + `</tbody></table></div>`
+      : `<div class="empty">Trust is earned per merchant: after ${T.min_proposals} proposals you paid unchanged, Warden offers to pay there itself.</div>`);
   $("#modelFoot").innerHTML = `<span class="dot ${m.local.reachable?"up":"amber"}"></span>${m.local.reachable?esc(m.local.model)+" · local":"rule-parser · no local model"}`;
 
   const pend = S.approvals.filter(a=>a.status==="pending");
@@ -408,7 +517,7 @@ async function refresh(){
   $("#kpis").innerHTML =
     kpi("Spent today", `<span class="num">${money(S.spend.today)}</span>`, `of ${money(p.daily_cap)} daily cap`, S.spend.today/p.daily_cap*100) +
     kpi("This month", `<span class="num">${money(S.spend.month)}</span>`, `of ${money(p.monthly_cap)} monthly cap`, S.spend.month/p.monthly_cap*100) +
-    kpi("Pending", `<span class="num ${pend.length?"":""}" style="${pend.length?"color:var(--amber)":""}">${pend.length}</span> <small>${money(pendAmt)}</small>`, pend.length?"awaiting your decision":"nothing waiting", null) +
+    kpi("Pending", `<span class="num ${pend.length?"":""}" style="${pend.length?"color:var(--amber)":""}">${pend.length}</span> <small>${money(pendAmt)}</small>`, `${pend.length} to approve · ${handoffs.length} to pay`, null) +
     kpi("Watching", `<span class="num">${active.length}</span>`, `${S.monitors.filter(x=>x.status==="triggered").length} triggered all-time`, null) +
     kpi("Risk level", `<span class="num" style="color:${RCOL[p.risk_level]}">${p.risk_level}</span> <small>${esc(p.risk_name)}</small>`, `max ${money(p.max_per_transaction)} / purchase`, null);
 
@@ -418,7 +527,7 @@ async function refresh(){
   $("#lvlName").textContent = p.risk_name; $("#dialDesc").textContent = p.risk_description;
   if (!limitsDirty){ const f=$("#limits");
     for (const k of ["max_per_transaction","auto_approve_under","daily_cap","monthly_cap"]) f[k].value=p[k];
-    for (const k of ["allowed_merchants","blocked_merchants","blocked_categories"]) f[k].value=p[k].join(", ");
+    for (const k of ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"]) f[k].value=p[k].join(", ");
     f.frontier_research_allowed.checked=p.frontier_research_allowed; f.frontier_redact_pii.checked=p.frontier_redact_pii; }
 
   $("#apCount").textContent = pend.length;
@@ -446,10 +555,10 @@ async function refresh(){
   $("#ordCount").textContent = S.orders.length;
   $("#orders").innerHTML = S.orders.length ? `<thead><tr><th>Item</th><th class="r">Amount</th><th>Merchant</th><th>Authorized by</th><th>Fulfillment</th><th>Status</th></tr></thead><tbody>` +
     S.orders.map(o=>{ const i=STAGES.indexOf(o.status);
-      return `<tr><td><span class="name">${esc(o.item)}</span> <span class="sub">×${o.qty}</span><div class="sub mono">${esc(o.merchant_order_id)} · ${ago(o.ts)} ago</div></td>
-      <td class="r num down">−${money(o.total)}</td>
+      return `<tr><td><span class="name">${esc(o.item)}</span> <span class="sub">×${o.qty}</span><div class="sub mono">${esc(o.merchant_order_id||"no order yet")} · ${ago(o.ts)} ago</div></td>
+      <td class="r num ${o.status==="handed_off"||o.status==="skipped"?"sub":"down"}">${o.status==="handed_off"||o.status==="skipped"?"":"−"}${money(o.total)}${o.outcome&&o.outcome!=="skipped"?`<div><span class="b ${o.outcome}">${label(o.outcome)}</span></div>`:""}</td>
       <td>${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?`<div class="sub">req. ${esc(o.requested_merchant)}</div>`:""}</td>
-      <td><span class="b ${o.approved_by.startsWith("policy")?"agent":""}">${esc(o.approved_by.startsWith("policy")?"agent · policy":o.approved_by)}</span></td>
+      <td><span class="b ${o.approved_by.startsWith("policy")?"agent":""}">${esc(o.approved_by.startsWith("policy")?"agent · policy":o.approved_by)}</span>${o.expected_total!=null&&o.outcome!=="skipped"&&o.status!=="handed_off"?`<div class="sub">paid by you</div>`:""}</td>
       <td><div class="steps">${STAGES.map((_,k)=>`<i class="${k<=i?"on":""}"></i>`).join("")}</div></td><td><span class="b ${o.status}">${label(o.status)}</span></td></tr>`; }).join("") + `</tbody>`
     : `<tbody><tr><td class="empty">No transactions yet.</td></tr></tbody>`;
 
@@ -467,6 +576,7 @@ async function loadCatalog(){
     <td class="r num">${money(p.price)}</td><td class="r chg ${p.discount_pct>0?"up":""}">${p.discount_pct>0?"−"+p.discount_pct+"%":"—"}</td>
     <td class="r" style="white-space:nowrap"><button class="btn ghost sm" data-sale="${p.sku}:30">−30%</button> <button class="btn ghost sm" data-sale="${p.sku}:0">Reset</button> <button class="btn ghost sm" data-watch="${p.sku}">Watch</button></td></tr>`).join("") + `</tbody>`;
 }
+if (!OWNER) $("#gate").classList.add("show");
 refresh(); loadCatalog();
 setInterval(refresh, 4000); setInterval(loadCatalog, 8000);
 </script>

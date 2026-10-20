@@ -110,7 +110,7 @@ button{font:500 12.5px Inter,sans-serif;cursor:pointer;border-radius:7px;transit
 .b{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;font:11px var(--monof);white-space:nowrap;
   color:var(--ink2);background:var(--panel2);border:1px solid var(--line)}
 .b::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
-.b.ordered,.b.delivered,.b.allow,.b.active,.b.researched{color:var(--up);background:var(--up-bg);border-color:transparent}
+.b.paid,.b.ordered,.b.delivered,.b.allow,.b.active,.b.researched{color:var(--up);background:var(--up-bg);border-color:transparent}
 .b.pending,.b.awaiting_approval,.b.require_approval,.b.triggered,.b.monitoring,.b.shipped,.b.out_for_delivery,.b.processing,.b.placed{color:var(--amber);background:var(--amber-bg);border-color:transparent}
 .b.placed,.b.processing{color:var(--blue);background:rgba(96,165,250,.09)}
 .b.denied,.b.deny,.b.rejected,.b.cancelled,.b.failed,.b.aborted,.b.no_match{color:var(--down);background:var(--down-bg);border-color:transparent}
@@ -217,7 +217,7 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .ev .h{font:10px var(--monof);color:var(--faint);margin-top:2px}
 .k-order_placed i,.k-handoff_paid i{background:var(--up)!important}.k-handoff_created i{background:var(--agent)!important}.k-policy_decision i{background:var(--agent)!important}
 .k-monitor_triggered i,.k-notify i{background:var(--amber)!important}.k-payment_token_minted i{background:var(--blue)!important}
-.k-approval_rejected i,.k-execution_aborted i,.k-order_failed i{background:var(--down)!important}
+.k-intent_rejected i,.k-approval_rejected i,.k-execution_aborted i,.k-order_failed i{background:var(--down)!important}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,8px);background:var(--panel2);color:var(--ink);border:1px solid var(--line2);padding:9px 14px;border-radius:9px;
   font-size:12.5px;opacity:0;transition:.2s;pointer-events:none;max-width:90vw;box-shadow:0 10px 30px rgba(0,0,0,.5)}
@@ -465,7 +465,8 @@ function evText(e){
     case "monitor_triggered": return `monitor #${d.monitor_id} hit at ${money(d.price)} (−${d.discount}%)`;
     case "research": return `model ${d.model} · sent "${d.sent}"`;
     case "notify": return `${d.title}: ${d.body}`;
-    case "intent_received": return `${d.intent.sku} ×${d.intent.quantity||1} at ${d.intent.merchant||"demo-store"}${d.intent.reason?` · "${d.intent.reason}"`:""}`;
+    case "intent_received": return `${d.intent.url?(d.intent.name||d.intent.url):d.intent.sku} ×${d.intent.quantity||1} at ${d.intent.url?d.intent.url.replace(/^https?:\/\/(www\.)?/,"").split("/")[0]:(d.intent.merchant||"demo-store")}${d.intent.price!=null&&d.intent.url?` · agent says ${money(d.intent.price)}`:""}${d.intent.reason?` · "${d.intent.reason}"`:""}`;
+    case "intent_rejected": return `${d.intent.url||d.intent.sku||"request"} refused: ${d.reason}`;
     case "handoff_created": return `${d.item} ×${d.qty} · ${money(d.expected_total)} · cart handed to you`;
     case "handoff_paid": return `order #${d.order_id}: you paid ${money(d.paid_total)} vs ${money(d.expected_total)} proposed · ${label(d.outcome)}`;
     case "handoff_skipped": return `order #${d.order_id} skipped · ${money(d.expected_total)} released`;
@@ -489,13 +490,13 @@ async function refresh(){
   const handoffMode = p.payment_mode !== "pay";
   $("#modeFoot").textContent = handoffMode ? (p.pay_merchants.length ? `Handoff mode · Warden pays at ${p.pay_merchants.join(", ")}` : "Handoff mode · agent prepares, you pay") : "Warden pays · simulated single-use tokens";
   document.querySelectorAll("#seg button").forEach(b=>b.classList.toggle("on", b.dataset.mode === (handoffMode?"handoff":"pay")));
-  $("#segNote").textContent = handoffMode ? "\u201CGoes through\u201D means the cart is prepared for you to pay. Nothing is charged." : "Payments use the mock vault in this MVP.";
+  $("#segNote").textContent = handoffMode ? "\u201CGoes through\u201D means the cart is prepared for you to pay. Nothing is charged." : "Payments use the mock vault in this MVP. Products from other websites are always handed to you.";
   $("#hoCount").textContent = handoffs.length;
   $("#handoffs").innerHTML = handoffs.length ? handoffs.map(o=>`<div class="ho"><div><div class="name">${esc(o.item)} <span class="sub">×${o.qty}</span></div>
       <div class="sub">${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?` · requested ${esc(o.requested_merchant)}`:""} · ${esc(o.approved_by.startsWith("policy")?"agent · policy":"approved by "+o.approved_by)} · ${ago(o.ts)} ago</div>
       <ul class="why" style="margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)">${JSON.parse(o.rationale||"[]").map(r=>`<li>→ ${esc(r)}</li>`).join("")}</ul></div>
       <div><div class="amt">${money(o.expected_total)}</div><div class="acts">
-        <a class="btn ghost sm" href="${esc(o.cart_url)}" target="_blank" rel="noopener">Open cart</a>
+        <a class="btn ghost sm" href="${esc(o.cart_url)}" target="_blank" rel="noopener">${/^https?:/.test(o.cart_url||"")?"Open "+esc(o.merchant)+" ↗":"Open cart"}</a>
         <button class="btn no sm" data-skip="${o.id}">Skip</button>
         <input id="amt-${o.id}" type="number" step="0.01" value="${Number(o.expected_total).toFixed(2)}" aria-label="Amount charged">
         <button class="btn ok sm" data-paid="${o.id}">Mark paid</button></div></div></div>`).join("")
@@ -533,7 +534,8 @@ async function refresh(){
 
   $("#apCount").textContent = pend.length;
   $("#approvals").innerHTML = pend.length ? pend.map(a=>{ const it=JSON.parse(a.intent), pr=JSON.parse(a.product);
-    return `<div class="ap"><div><div class="name">${esc(pr.name)} <span class="sub">×${it.quantity}</span></div>
+    const isWeb = /^https?:/.test(pr.url||"");
+    return `<div class="ap"><div><div class="name">${isWeb?`<a href="${esc(pr.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(pr.name)} ↗</a>`:esc(pr.name)} <span class="sub">×${it.quantity}</span>${it.price_verified===false?` <span class="b changed">price unverified</span>`:""}</div>
       <div class="sub">${esc(pr.merchant)}${it.requested_merchant&&it.requested_merchant!==pr.merchant?` · requested ${esc(it.requested_merchant)}`:""} · ${esc(pr.category)} · ${ago(a.ts)} ago</div>
       <ul class="why">${(it.reason?[`Agent: ${it.reason}`]:[]).concat(JSON.parse(a.reasons)).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
       <div><div class="amt">${money(pr.price*it.quantity)}</div><div class="acts"><button class="btn no sm" data-ap="${a.id}:reject">Reject</button><button class="btn ok sm" data-ap="${a.id}:approve">Approve</button></div></div></div>`; }).join("")
@@ -556,7 +558,7 @@ async function refresh(){
   $("#ordCount").textContent = S.orders.length;
   $("#orders").innerHTML = S.orders.length ? `<thead><tr><th>Item</th><th class="r">Amount</th><th>Merchant</th><th>Authorized by</th><th>Fulfillment</th><th>Status</th></tr></thead><tbody>` +
     S.orders.map(o=>{ const i=STAGES.indexOf(o.status);
-      return `<tr><td><span class="name">${esc(o.item)}</span> <span class="sub">×${o.qty}</span><div class="sub mono">${esc(o.merchant_order_id||"no order yet")} · ${ago(o.ts)} ago</div></td>
+      return `<tr><td><span class="name">${esc(o.item)}</span> <span class="sub">×${o.qty}</span><div class="sub mono">${esc(o.merchant_order_id||(o.status==="paid"?"paid on site":"no order yet"))} · ${ago(o.ts)} ago</div></td>
       <td class="r num ${o.status==="handed_off"||o.status==="skipped"?"sub":"down"}">${o.status==="handed_off"||o.status==="skipped"?"":"−"}${money(o.total)}${o.outcome&&o.outcome!=="skipped"?`<div><span class="b ${o.outcome}">${label(o.outcome)}</span></div>`:""}</td>
       <td>${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?`<div class="sub">req. ${esc(o.requested_merchant)}</div>`:""}</td>
       <td><span class="b ${o.approved_by.startsWith("policy")?"agent":""}">${esc(o.approved_by.startsWith("policy")?"agent · policy":o.approved_by)}</span>${o.expected_total!=null&&o.outcome!=="skipped"&&o.status!=="handed_off"?`<div class="sub">paid by you</div>`:""}</td>

@@ -68,6 +68,30 @@ everywhere. In this MVP the vault is a mock, so "Warden pays" is simulated.
 | `POST /api/orders/{id}/skip` | Decline the proposal |
 | `GET /api/track-record` | Overall and per-merchant record + suggestions (agent token works too) |
 
+## Products from any website
+
+Agents can propose any product page, not just connected stores. Warden
+treats the site's domain as the merchant (`www.staples.com` → `staples.com`),
+so approved/blocked merchant lists and the track record work per site;
+listing `staples.com` also covers `shop.staples.com`.
+
+- **Price:** Warden reads it from the page itself (schema.org data or price
+  meta tags). Many big retailers block automated reads; then the agent's
+  reported price is used, marked **price unverified**, and you always approve
+  it, even at risk level 4. If the page later shows a higher price than the
+  agent reported, the purchase is aborted.
+- **Category:** from the page and product name, by rules first (gift cards,
+  crypto, firearms and subscriptions are always caught by rules, so a page
+  can't talk its way past a blocked category), then your local model if one
+  is running. If it's unclear, the category is `unknown` and you approve it.
+- **Paying:** always yours. "Open staples.com ↗" takes you to the product
+  page; you buy there and mark it paid. Warden never pays on websites it
+  isn't connected to, so it never offers "Let Warden pay" for them.
+- **Safety:** the hub only fetches public http(s) pages. It refuses `file://`,
+  localhost and private network addresses, so an agent can't use it to probe
+  your network. Price watches work on any product page too, including
+  `action: "buy"`, which proposes a handoff.
+
 ## Two tokens
 
 | Token | File | Can |
@@ -134,13 +158,14 @@ claude mcp add warden -- /absolute/path/to/warden/mcp.sh
 { "mcpServers": { "warden": { "command": "/absolute/path/to/warden/mcp.sh" } } }
 ```
 
-Then just ask: *"get me a basic office chair"*, *"buy the grill when it's 25% off"*.
+Then just ask: *"get me a basic office chair"*, *"buy the grill when it's 25% off"*,
+or point it at any product page: *"get me this chair: https://www.staples.com/…"*.
 
 | Tool | Does |
 |---|---|
 | `get_policy` | Risk level, payment mode, limits and budget left today / this month |
 | `search_products` | Products Warden can buy, with live prices and SKUs |
-| `request_purchase(sku, reason)` | Proposes a purchase. `reason` is shown to you on the card |
+| `request_purchase(reason, sku \| url)` | Proposes a purchase from a connected store (`sku`) or any website (`url` + the `price` and `name` the agent sees). `reason` is shown to you on the card |
 | `check_request(approval_id \| order_id)` | Follow up: waiting, approved, handed off, paid, shipped |
 | `watch_price(sku, max_price \| min_discount_pct, action)` | Price watch that notifies, or proposes a purchase (still through policy) |
 | `track_record` | How often you paid what agents proposed |
@@ -186,7 +211,8 @@ warden/
   vault.py         single-use merchant-locked payment tokens (mock)
   models.py        local model router, rule parser, PII redaction, frontier research
   hub.py           orchestration: tasks, approvals, execution, monitors, orders
-  merchants/       adapters: demo-store (buyable), web (read-only price reader)
+  merchants/       adapters: demo-store (buyable), web (any site: price reader, handoff only)
+  categories.py    product categories for any site (rules first, then local model)
   server.py        FastAPI + dashboard (static/index.html)
   mcp_server.py    MCP tools for Claude Desktop / Claude Code / Cursor (agent token only)
 tests/            core, handoff and API-auth tests (pip install -r requirements-dev.txt; pytest)
@@ -205,9 +231,9 @@ tests/            core, handoff and API-auth tests (pip install -r requirements-
    profile. Keep `place_order` behind the executor only.
 3. **Order tracking** — parse order/shipping emails (local IMAP + local model)
    instead of scraping merchant sites.
-4. ~~**MCP server**~~ — done (`./mcp.sh`). Next: let agents propose any product
-   URL on the web in handoff mode, with the merchant taken from the domain,
-   so they aren't limited to connected stores.
+4. ~~**MCP server**~~ and ~~**any-website handoffs**~~ — done. Next: read
+   prices that only appear after JavaScript runs, using a local headless
+   browser, so fewer prices end up unverified.
 5. **Approvals off the machine** — sign approvals on your phone, and anchor
    the ledger head outside the machine, so a local agent can't approve its
    own purchases or rewrite history.

@@ -24,8 +24,10 @@ from pathlib import Path
 
 try:  # mcp >= 2
     from mcp.server.mcpserver import MCPServer as _Server
+    from mcp.server.mcpserver.exceptions import ToolError
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server
+    from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 HUB = os.getenv("WARDEN_URL", "http://127.0.0.1:8787").rstrip("/")
@@ -34,8 +36,11 @@ DATA = Path(os.getenv("WARDEN_DATA", Path(__file__).resolve().parent.parent / "d
 INSTRUCTIONS = """Warden is the user's local purchase hub. You never handle payment details:
 do not ask for or accept card numbers, bank logins or passwords.
 
-To buy something: search_products, then request_purchase with a short reason the
-user will read. Warden applies the user's policy and replies with one of:
+To buy something from a connected store: search_products, then request_purchase(sku=...).
+For any other website: request_purchase(url=<product page>, price=<price you see>,
+name=<product name>). Warden reads the price itself where it can; otherwise your price
+is marked unverified and the user must approve. The user always pays on that site.
+Always give a short reason the user will read. Warden replies with one of:
 - handed_off: the cart is ready and the USER pays at the store. Tell them it's in
   Warden's "Ready for you to pay" list. Do not try to pay yourself.
 - awaiting_approval: the user must approve in Warden first. Follow up later with
@@ -46,8 +51,8 @@ Call get_policy first if you're unsure what is allowed or how much budget is lef
 For "buy when it's on sale" requests use watch_price."""
 
 
-class HubError(RuntimeError):
-    pass
+class HubError(ToolError):
+    """Shown to the model as the tool's error message, so it can explain or correct."""
 
 
 def _token() -> str:
@@ -108,12 +113,23 @@ def search_products(query: str) -> list[dict]:
 
 
 @mcp.tool(annotations=WRITE)
-def request_purchase(sku: str, reason: str, quantity: int = 1, merchant: str = "demo-store") -> dict:
-    """Ask Warden to buy a product. Warden looks up the live price itself and applies the
-    user's policy. `reason` is shown to the user next to the request; say in one sentence
-    why this item fits what they asked for. You never pay and never see payment details."""
-    r = _call("POST", "/api/intents",
-              {"merchant": merchant, "sku": sku, "quantity": quantity, "reason": reason})
+def request_purchase(reason: str, sku: str | None = None, url: str | None = None,
+                     price: float | None = None, name: str | None = None,
+                     quantity: int = 1, merchant: str = "demo-store") -> dict:
+    """Ask Warden to buy a product: either `sku` from search_products, or `url` of a product
+    page on any website (with the `price` and `name` you see there). Warden reads the live
+    price itself and applies the user's policy. `reason` is shown to the user next to the
+    request; say in one sentence why this item fits what they asked for. You never pay and
+    never see payment details."""
+    if url:
+        body = {"url": url, "price": price, "name": name, "quantity": quantity, "reason": reason}
+    elif sku:
+        body = {"merchant": merchant, "sku": sku, "quantity": quantity, "reason": reason}
+    else:
+        raise HubError("Pass sku (from search_products) or url (a product page).")
+    r = _call("POST", "/api/intents", body)
+    if r.get("status") == "error":
+        raise HubError(r.get("message") or r.get("error"))
     out = {k: r[k] for k in ("status", "message", "total", "order_id", "approval_id",
                              "cart_url", "expected_total", "merchant_order_id", "note") if r.get(k) is not None}
     if r.get("decision"):
@@ -143,8 +159,8 @@ def watch_price(sku: str, max_price: float | None = None, min_discount_pct: floa
                 action: str = "notify", quantity: int = 1, merchant: str = "demo-store") -> dict:
     """Watch a product and act when it hits a price (max_price) or a discount off list
     (min_discount_pct). action="notify" alerts the user; action="buy" makes a purchase
-    request that still goes through policy. For any product page on the web, use
-    merchant="web" and pass the page URL as sku (notify only)."""
+    request that still goes through policy (on websites the user then pays). For any
+    product page on the web, use merchant="web" and pass the page URL as sku."""
     return _call("POST", "/api/monitors", {"merchant": merchant, "sku": sku, "max_price": max_price,
                                            "min_discount_pct": min_discount_pct, "action": action,
                                            "quantity": quantity})

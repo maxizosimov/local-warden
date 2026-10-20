@@ -14,6 +14,7 @@ of the space *inside* those limits the agent may use without asking.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -48,7 +49,7 @@ class Policy:
     pay_merchants: list[str] = field(default_factory=list)
 
     def pays_at(self, merchant: str) -> bool:
-        return self.payment_mode == "pay" or merchant.lower() in [x.lower() for x in self.pay_merchants]
+        return self.payment_mode == "pay" or merchant_in(merchant, self.pay_merchants)
 
     @classmethod
     def load(cls, path: str | Path) -> "Policy":
@@ -79,6 +80,7 @@ class PurchaseIntent:
     quantity: int = 1
     category: str = "general"
     source: str = "local"  # who produced this intent, set by the hub: local | agent | frontier | user
+    price_verified: bool = True  # False when Warden couldn't read the price and used the agent's
 
     @property
     def total(self) -> float:
@@ -94,6 +96,12 @@ class Decision:
         return {"outcome": self.outcome, "reasons": self.reasons}
 
 
+def merchant_in(merchant: str, names: list[str]) -> bool:
+    """'staples.com' in the list also covers 'shop.staples.com'."""
+    m = merchant.lower()
+    return any(m == x.lower() or m.endswith("." + x.lower()) for x in names)
+
+
 def evaluate(policy: Policy, intent: PurchaseIntent, spent_today: float, spent_month: float) -> Decision:
     deny, ask = [], []
     m, total = intent.merchant.lower(), intent.total
@@ -103,12 +111,12 @@ def evaluate(policy: Policy, intent: PurchaseIntent, spent_today: float, spent_m
         deny.append("Frontier models can research but are never allowed to execute purchases.")
     if policy.risk_level == 0:
         deny.append("Risk level 0 (Observe): purchases are disabled.")
-    if m in [x.lower() for x in policy.blocked_merchants]:
+    if merchant_in(m, policy.blocked_merchants):
         deny.append(f"Merchant '{intent.merchant}' is blocked.")
     if intent.category in policy.blocked_categories:
         deny.append(f"Category '{intent.category}' is blocked.")
-    if total <= 0:
-        deny.append("Total must be positive.")
+    if not math.isfinite(total) or total <= 0:  # NaN would slip past every comparison below
+        deny.append("Total must be a positive number.")
     if total > policy.max_per_transaction:
         deny.append(f"${total:.2f} exceeds per-transaction max ${policy.max_per_transaction:.2f}.")
     if spent_today + total > policy.daily_cap:
@@ -119,12 +127,17 @@ def evaluate(policy: Policy, intent: PurchaseIntent, spent_today: float, spent_m
         return Decision("deny", deny)
 
     # ---- risk dial: inside the hard limits, how much can run unattended --
-    allowed = m in [x.lower() for x in policy.allowed_merchants]
+    allowed = merchant_in(m, policy.allowed_merchants)
     small = total < policy.auto_approve_under
     lvl = policy.risk_level
 
     if intent.category in policy.require_approval_categories:
         ask.append(f"Category '{intent.category}' always needs approval.")
+    # These two ask at every risk level, even Autonomous.
+    if not intent.price_verified:
+        ask.append(f"Price not verified: Warden couldn't read the page, ${intent.price:.2f} is what the agent reported.")
+    if intent.category == "unknown":
+        ask.append("Couldn't tell what kind of product this is.")
     if lvl == 1:
         ask.append("Risk level 1 (Ask always).")
     elif lvl == 2:

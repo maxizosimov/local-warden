@@ -8,12 +8,14 @@ import sqlite3
 import threading
 import time
 import urllib.request
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
 from . import models
 from .ledger import Ledger
-from .merchants import REGISTRY, Product
+from .categories import classify
+from .merchants import REGISTRY, Product, web
 from .policy import Policy, PurchaseIntent, evaluate
 from .vault import MockVault
 
@@ -104,6 +106,11 @@ class Hub:
             return self.policy
 
     # ------------------------------------------------- resolve merchants ---
+    @staticmethod
+    def _store(merchant: str):
+        """Adapter for a merchant: a connected store, or the web reader for any site."""
+        return REGISTRY.get(merchant) or REGISTRY["web"]
+
     def _adapter_for(self, requested: str | None):
         if requested and requested in REGISTRY and REGISTRY[requested].can_purchase:
             return REGISTRY[requested], None
@@ -132,15 +139,44 @@ class Hub:
     def submit_intent(self, d: dict, agent_id: str, source: str = "agent") -> dict:
         """For external agents (your own local agent, scripts, etc.) to request a purchase.
         The hub - not the agent - looks up the live price, sets the source and decides."""
+        reason = str(d.get("reason") or "").strip()[:500]  # the agent's own words, shown to you
+        if d.get("url"):
+            return self._submit_url(d, agent_id, source, reason)
         adapter, note = self._adapter_for(d.get("merchant"))
         p = adapter.get_product(d.get("sku", ""))
         if not p:
             self.log("intent_rejected", agent_id, reason="unknown sku", intent=d)
-            return {"status": "error", "error": "unknown sku"}
+            return {"status": "error", "error": "unknown sku", "message": "Unknown sku."}
         self.log("intent_received", agent_id, intent=d)
-        reason = str(d.get("reason") or "").strip()[:500]  # the agent's own words, shown to you
         return self._propose(p, int(d.get("quantity", 1)), source, None,
                              d.get("merchant"), actor=agent_id, note=note, reason=reason)
+
+    def _submit_url(self, d: dict, agent_id: str, source: str, reason: str) -> dict:
+        """A product on any website. Warden reads the price itself; if the page won't
+        tell it, it uses the agent's reported price, marked unverified (always asks)."""
+        url = str(d["url"]).strip()
+        try:
+            web.check_public_url(url)
+        except ValueError as e:
+            self.log("intent_rejected", agent_id, reason=str(e), intent=d)
+            return {"status": "error", "error": str(e), "message": f"Can't use that URL: {e}."}
+        self.log("intent_received", agent_id, intent=d)
+        p = REGISTRY["web"].get_product(url)
+        verified = p is not None
+        if not p:
+            try:
+                claimed = round(float(d.get("price")), 2)
+            except (TypeError, ValueError):
+                claimed = 0
+            if claimed <= 0:
+                self.log("intent_rejected", agent_id, reason="price unreadable", intent=d)
+                return {"status": "error", "error": "price unreadable",
+                        "message": "Warden couldn't read the price on that page. Send the price shown "
+                                   "on the page; it will be marked unverified and need approval."}
+            name = str(d.get("name") or "").strip()[:200] or web.domain_of(url)
+            p = Product(web.domain_of(url), url, name, claimed, claimed, classify(name, "", url), url)
+        return self._propose(p, int(d.get("quantity", 1)), source, None, p.merchant,
+                             actor=agent_id, reason=reason, price_verified=verified)
 
     # ------------------------------------------------------- handlers ------
     def _do_buy(self, tid: int, parsed: dict) -> dict:
@@ -185,9 +221,10 @@ class Hub:
 
     # ------------------------------------------------ propose / execute ----
     def _propose(self, p: Product, qty: int, source: str, tid: int | None,
-                 requested: str | None, actor: str = "agent", note: str | None = None, reason: str = "") -> dict:
+                 requested: str | None, actor: str = "agent", note: str | None = None, reason: str = "",
+                 price_verified: bool = True) -> dict:
         with self.lock:
-            intent = PurchaseIntent(p.merchant, p.name, p.price, qty, p.category, source)
+            intent = PurchaseIntent(p.merchant, p.name, p.price, qty, p.category, source, price_verified)
             today, month = self.spend()
             dec = evaluate(self.policy, intent, today, month)
             self.log("policy_decision", actor, task_id=tid, intent=intent.__dict__,
@@ -209,14 +246,17 @@ class Hub:
 
     def _execute(self, p: Product, qty: int, tid: int | None, requested: str | None, approved_by: str,
                  why: list[str] | None = None, reason: str = "", approval_id: int | None = None) -> dict:
-        adapter = REGISTRY[p.merchant]
+        adapter = self._store(p.merchant)
         live = adapter.get_product(p.sku)
+        if live is None and not adapter.can_purchase:
+            live = p  # page unreadable now: hand off at the price that was approved; you'll see the real one
         if not live or live.price > p.price * 1.02:  # price moved up since the decision: stop
             self.log("execution_aborted", task_id=tid, reason="price changed", was=p.price,
                      now=live.price if live else None)
             return {"status": "aborted", "message": "Price changed since approval - not purchased."}
+        live = replace(live, category=p.category)  # keep the category policy decided on
         total = round(live.price * qty, 2)
-        if not self.policy.pays_at(adapter.name):
+        if not (adapter.can_purchase and self.policy.pays_at(p.merchant)):  # Warden can't pay at web stores
             why = ([f"Agent: {reason}"] if reason else []) + (why or [])
             return self._handoff(adapter, live, qty, total, tid, requested, approved_by, why, approval_id)
         tok = self.vault.mint(adapter.name, total)
@@ -250,11 +290,11 @@ class Hub:
             "INSERT INTO orders (ts,task_id,merchant,requested_merchant,sku,item,qty,unit_price,total,"
             "merchant_order_id,status,approved_by,updated,category,expected_total,cart_url,rationale,approval_id) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            time.time(), tid, adapter.name, requested, live.sku, live.name, qty, live.price, total,
+            time.time(), tid, live.merchant, requested, live.sku, live.name, qty, live.price, total,
             "", "handed_off", approved_by, time.time(), live.category, total, cart, json.dumps(why), approval_id)
-        self.log("handoff_created", "executor", order_id=oid, merchant=adapter.name, item=live.name,
+        self.log("handoff_created", "executor", order_id=oid, merchant=live.merchant, item=live.name,
                  qty=qty, expected_total=total, cart_url=cart, approved_by=approved_by)
-        self.notify("Ready for you to pay", f"{live.name} x{qty} - ${total:.2f} at {adapter.name}")
+        self.notify("Ready for you to pay", f"{live.name} x{qty} - ${total:.2f} at {live.merchant}")
         return {"status": "handed_off", "order_id": oid, "cart_url": cart, "expected_total": total,
                 "message": f"Cart ready: {live.name} for ${total:.2f}. You pay, Warden records it."}
 
@@ -268,13 +308,16 @@ class Hub:
                 return {"status": "error", "message": "Amount must be positive."}
             dev = abs(amount - o["expected_total"]) / o["expected_total"]
             outcome = "as_proposed" if dev <= AS_PROPOSED_TOLERANCE else "changed"
-            mid = merchant_order_id or REGISTRY[o["merchant"]].record_manual_order(o["sku"], o["qty"])
-            self._exec("UPDATE orders SET status='placed', total=?, paid_total=?, outcome=?, "
+            store = self._store(o["merchant"])
+            mid = merchant_order_id or store.record_manual_order(o["sku"], o["qty"])
+            # "placed" starts shipment tracking where the store supports it; otherwise just "paid".
+            status = "placed" if store.can_purchase else "paid"
+            self._exec("UPDATE orders SET status=?, total=?, paid_total=?, outcome=?, "
                        "merchant_order_id=?, updated=? WHERE id=?",
-                       amount, amount, outcome, mid, time.time(), oid)
+                       status, amount, amount, outcome, mid, time.time(), oid)
             self.log("handoff_paid", actor, order_id=oid, expected_total=o["expected_total"],
                      paid_total=amount, outcome=outcome, merchant_order_id=mid)
-            return {"status": "placed", "outcome": outcome, "merchant_order_id": mid,
+            return {"status": status, "outcome": outcome, "merchant_order_id": mid,
                     "message": f"Recorded ${amount:.2f} paid ({outcome.replace('_', ' ')})."}
 
     def skip_handoff(self, oid: int, actor: str = "user") -> dict:
@@ -312,7 +355,7 @@ class Hub:
         for m, rs in merchants.items():
             recent = [r for r in rs if r["outcome"]][-TRUST_MIN_PROPOSALS:]
             if (len(recent) == TRUST_MIN_PROPOSALS and all(r["outcome"] == "as_proposed" for r in recent)
-                    and not self.policy.pays_at(m)):
+                    and self._store(m).can_purchase and not self.policy.pays_at(m)):
                 largest = max(r["paid_total"] for r in recent)
                 suggestions.append({
                     "merchant": m,
@@ -338,7 +381,8 @@ class Hub:
             # A human OK overrides the risk dial, never the hard limits.
             today, month = self.spend()
             dec = evaluate(self.policy, PurchaseIntent(p.merchant, p.name, p.price, it["quantity"],
-                                                       p.category, it["source"]), today, month)
+                                                       p.category, it["source"], it.get("price_verified", True)),
+                           today, month)
             if dec.outcome == "deny":
                 self.log("execution_aborted", reason="hard limit at approval time", decision=dec.to_dict())
                 return {"status": "denied", "message": " ".join(dec.reasons)}
@@ -403,11 +447,11 @@ class Hub:
                 continue
             self._exec("UPDATE monitors SET status='triggered', triggered_ts=? WHERE id=?", time.time(), m["id"])
             self.log("monitor_triggered", "monitor", monitor_id=m["id"], price=p.price, discount=p.discount_pct)
-            if m["action"] == "notify" or not adapter.can_purchase:
+            if m["action"] == "notify":
                 self.notify("Price alert", f"{p.name} is ${p.price:.2f} ({p.discount_pct}% off)")
                 fired.append({"monitor_id": m["id"], "status": "notified"})
             else:
-                fired.append({"monitor_id": m["id"], **self._propose(p, m["qty"], "local", m["task_id"], m["merchant"], actor="monitor")})
+                fired.append({"monitor_id": m["id"], **self._propose(p, m["qty"], "local", m["task_id"], p.merchant, actor="monitor")})
         return fired
 
     # ---------------------------------------------------------- orders -----

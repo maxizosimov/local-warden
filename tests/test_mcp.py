@@ -49,7 +49,7 @@ def test_purchase_handoff_flow(live):
     owner("PUT", "/api/policy", {"risk_level": 2})
     assert m.get_policy()["remaining"]["today"] == 200
     sku = m.search_products("gel pens")[0]["sku"]
-    r = m.request_purchase(sku, "User asked for pens for the office.")
+    r = m.request_purchase("User asked for pens for the office.", sku=sku)
     assert r["status"] == "handed_off" and "user pays" in r["next_step"].lower()
     row = server.hub.snapshot()["orders"][0]
     assert json.loads(row["rationale"])[0] == "Agent: User asked for pens for the office."
@@ -62,7 +62,7 @@ def test_purchase_handoff_flow(live):
 
 def test_approval_followup(live):
     m, server, owner, *_ = live
-    r = m.request_purchase("CHR-200", "Cheapest task chair in stock.")
+    r = m.request_purchase("Cheapest task chair in stock.", sku="CHR-200")
     assert r["status"] == "awaiting_approval"
     assert m.check_request(approval_id=r["approval_id"])["status"] == "awaiting_approval"
     owner("POST", f"/api/approvals/{r['approval_id']}/approve")
@@ -86,7 +86,7 @@ def test_watch_price_and_denial(live):
         m.watch_price("GRL-400")  # no condition
     with pytest.raises(m.HubError):
         m.watch_price("file:///etc/passwd", max_price=1, merchant="web")
-    assert m.request_purchase("GFT-700", "gift")["status"] == "denied"
+    assert m.request_purchase("gift", sku="GFT-700")["status"] == "denied"
 
 
 def test_refuses_owner_token(live, monkeypatch):
@@ -119,5 +119,23 @@ def test_stdio_protocol(live):
         res = rpc(3, "tools/call", {"name": "request_purchase",
                                     "arguments": {"sku": "PEN-510", "reason": "pens"}})["result"]
         assert not res.get("isError") and "awaiting_approval" in json.dumps(res)
+        err = rpc(4, "tools/call", {"name": "request_purchase",
+                                    "arguments": {"reason": "x", "url": "http://192.168.1.1/admin", "price": 5}})["result"]
+        assert err["isError"] and "not a public address" in json.dumps(err)  # the model sees why
     finally:
         p.kill()
+
+
+def test_purchase_by_url(live, monkeypatch):
+    m, server, *_ = live
+    from warden.merchants import web
+    monkeypatch.setattr(web, "fetch_html", lambda url: None)  # store blocks bots
+    monkeypatch.setattr(web, "check_public_url", lambda url: None)
+    r = m.request_purchase("Matches the grill you picked.", url="https://www.homedepot.com/p/weber",
+                           price=179.0, name="Weber Spirit Gas Grill")
+    assert r["status"] == "awaiting_approval"
+    assert any("not verified" in x for x in r["policy_reasons"])
+    with pytest.raises(m.HubError, match="couldn't read the price"):
+        m.request_purchase("x", url="https://www.homedepot.com/p/weber")
+    with pytest.raises(m.HubError, match="sku"):
+        m.request_purchase("x")

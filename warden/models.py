@@ -11,9 +11,22 @@ from __future__ import annotations
 import json
 import os
 import re
+import urllib.parse
 import urllib.request
 
-LOCAL_URL = os.getenv("WARDEN_LOCAL_URL", "http://localhost:11434/v1")  # Ollama default
+def _default_local_url() -> str:
+    """WARDEN_LOCAL_URL, else wherever Ollama is told to listen (OLLAMA_HOST), else its default."""
+    if os.getenv("WARDEN_LOCAL_URL"):
+        return os.environ["WARDEN_LOCAL_URL"]
+    host = os.getenv("OLLAMA_HOST", "").strip()
+    if not host:
+        return "http://localhost:11434/v1"
+    p = urllib.parse.urlsplit(host if "://" in host else "http://" + host)
+    name = "127.0.0.1" if p.hostname in (None, "0.0.0.0", "::") else p.hostname
+    return f"{p.scheme}://{name}:{p.port or 11434}/v1"
+
+
+LOCAL_URL = _default_local_url()
 LOCAL_MODEL = os.getenv("WARDEN_LOCAL_MODEL", "llama3.2")
 FRONTIER_PROVIDER = os.getenv("WARDEN_FRONTIER_PROVIDER", "anthropic")  # anthropic | openai
 FRONTIER_MODEL = os.getenv("WARDEN_FRONTIER_MODEL", "claude-sonnet-5-5")
@@ -45,11 +58,17 @@ def set_local_model(name: str) -> None:
     _status_cache["v"] = None
 
 
-def _post(url: str, body: dict, headers: dict, timeout: int = 60) -> dict:
+# The local model is on this machine: never route it through a system or VPN proxy
+# (macOS proxy settings can otherwise catch localhost and hide a running Ollama).
+local_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _post(url: str, body: dict, headers: dict, timeout: int = 60, local: bool = False) -> dict:
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers}
     )
-    return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+    opener = local_opener if local else urllib.request.build_opener()
+    return json.loads(opener.open(req, timeout=timeout).read())
 
 
 # ---------------------------------------------------------------- local ----
@@ -63,7 +82,7 @@ def local_chat(system: str, user: str, timeout: int = 60) -> str | None:
             {"model": LOCAL_MODEL, "temperature": 0,
              "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]},
             {"Authorization": f"Bearer {os.getenv('WARDEN_LOCAL_KEY', 'local')}"},
-            timeout,
+            timeout, local=True,
         )
         text = r["choices"][0]["message"]["content"] or ""
         # Reasoning models think out loud first; only the answer after it counts.
@@ -77,7 +96,7 @@ _status_cache: dict = {"t": 0.0, "v": None}
 
 def local_status() -> dict:
     import time
-    if _status_cache["v"] and time.time() - _status_cache["t"] < 30:
+    if _status_cache["v"] and time.time() - _status_cache["t"] < 10:
         return _status_cache["v"]
     _status_cache.update(t=time.time(), v=_local_status())
     return _status_cache["v"]
@@ -86,7 +105,7 @@ def local_status() -> dict:
 def _local_status() -> dict:
     try:
         req = urllib.request.Request(f"{LOCAL_URL.rstrip('/')}/models")
-        data = json.loads(urllib.request.urlopen(req, timeout=3).read())
+        data = json.loads(local_opener.open(req, timeout=3).read())
         return {"reachable": True, "url": LOCAL_URL, "model": LOCAL_MODEL,
                 "available": [m.get("id") for m in data.get("data", [])][:20]}
     except Exception:

@@ -458,7 +458,7 @@ document.addEventListener("click", async e => {
 });
 
 // ---- local model picker: what fits this computer, download, switch, test ----
-let MM = null, mmOpen = false, mmTest = null, mmTesting = false;
+let MM = null, mmOpen = false, mmTest = null, mmTesting = false, mmStarting = false;
 const gb = n => n == null ? "" : `${n.toFixed(1)} GB`;
 async function loadModels(){ try { MM = await api("/api/models"); } catch(e){ return; } renderModels(); }
 function renderModels(){
@@ -469,6 +469,8 @@ function renderModels(){
   h += MM.installed.length ? `<select id="mmSel" aria-label="Local model">${MM.active_installed?"":`<option selected disabled>${esc(active)} (not downloaded)</option>`}${opts}</select>`
                            : `<span class="mono" style="font-size:12px">${e.running?"no models yet":"no local model"}</span>`;
   h += `<span class="grow"></span>`;
+  const starting = mmStarting || e.starting;
+  if (!e.running && e.can_start && !mmOpen) h += starting ? `<span class="sub">Starting Ollama…</span>` : `<button class="btn ok sm" data-mstart="1">${e.start_error?"Try again":"Start Ollama"}</button>`;
   if (e.running && MM.installed.length) h += `<button class="btn ghost sm" data-mtest="1" ${mmTesting?"disabled":""}>${mmTesting?"Testing…":"Test"}</button>`;
   h += `<button class="btn ghost sm" data-mtoggle="1">${mmOpen?"Done":"Manage"}</button></div>`;
   if (mmTest) h += `<div class="mtest">` + mmTest.results.map(r=>`<div><span class="${r.ok?"up":"down"}">${r.ok?"✓":"✗"}</span><span>${esc(r.job)} <span class="sub">→ ${esc(r.answer)}</span></span><span class="s">${r.seconds}s</span></div>`).join("") +
@@ -476,7 +478,10 @@ function renderModels(){
   if (!mmOpen){ if (pulls.length) h += `<div class="mmnote">Downloading ${pulls.map(([n,p])=>`${esc(n)} ${p.total?Math.round(p.completed/p.total*100)+"%":""}`).join(", ")}…</div>`; $("#mm").innerHTML = h; return; }
 
   h += `<div class="mmnote">${esc(MM.hardware.label)} · models up to about ${gb(MM.hardware.budget_gb)} fit</div>`;
-  if (e.kind === "none") h += `<div class="mmnote">Ollama isn't running. Install it from <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a> (Mac: <code>brew install ollama</code>), open it, then come back here. Until then, rules do the model's jobs.</div>`;
+  if (e.kind === "none" && e.can_start) h += `<div class="mmnote">${starting ? "Starting Ollama…" :
+      e.start_error ? `${esc(e.start_error)} <button class="btn ok sm" data-mstart="1">Try again</button>`
+      : `Ollama is installed but stopped. Warden starts it when it launches. <button class="btn ok sm" data-mstart="1">Start now</button>`}</div>`;
+  else if (e.kind === "none") h += `<div class="mmnote">Ollama isn't running. Install it from <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a> (Mac: <code>brew install ollama</code>), open it, then come back here. Until then, rules do the model's jobs.</div>`;
   if (e.kind === "openai") h += `<div class="mmnote">Using the model server at <code>${esc(MM.url)}</code>. Download models in that app, then pick one above.</div>`;
   if (e.kind === "ollama"){
     h += MM.catalog.map(m=>{ const p = MM.pulls[m.name], busy = p && !["success","error"].includes(p.status);
@@ -492,14 +497,15 @@ function renderModels(){
   $("#mm").innerHTML = h;
 }
 $("#mm").addEventListener("click", async ev => {
-  const b = ev.target.closest("[data-mtoggle],[data-mtest],[data-mpull],[data-muse],[data-mdel]"); if (!b) return;
+  const b = ev.target.closest("[data-mtoggle],[data-mtest],[data-mpull],[data-muse],[data-mdel],[data-mstart]"); if (!b) return;
   try {
     if (b.dataset.mtoggle){ mmOpen = !mmOpen; renderModels(); }
+    if (b.dataset.mstart){ mmStarting = true; renderModels(); const r = await api("/api/models/start",{method:"POST"}); mmStarting = false; toast(`Ollama ${r.version||""} is running`); }
     if (b.dataset.mtest){ mmTesting = true; mmTest = null; renderModels(); mmTest = await api("/api/models/test",{method:"POST"}); mmTesting = false; }
     if (b.dataset.mpull){ await api("/api/models/pull",{method:"POST",body:{name:b.dataset.mpull}}); toast(`Downloading ${b.dataset.mpull}`); }
     if (b.dataset.muse){ await api("/api/models/use",{method:"POST",body:{name:b.dataset.muse}}); mmTest = null; toast(`Now using ${b.dataset.muse}`); }
     if (b.dataset.mdel){ if (!confirm(`Delete ${b.dataset.mdel} from this computer?`)) return; await api("/api/models/delete",{method:"POST",body:{name:b.dataset.mdel}}); toast("Deleted"); }
-  } catch(err){ mmTesting = false; toast(err.message); }
+  } catch(err){ mmTesting = mmStarting = false; toast(err.message); }
   loadModels(); refresh();
 });
 $("#mm").addEventListener("change", async ev => {
@@ -513,7 +519,7 @@ $("#mm").addEventListener("submit", async ev => {
   try { await api("/api/models/pull",{method:"POST",body:{name}}); toast(`Downloading ${name}`); } catch(err){ toast(err.message); }
   loadModels();
 });
-setInterval(() => { if (mmOpen || (MM && Object.values(MM.pulls).some(p=>!["success","error"].includes(p.status)))) loadModels(); }, 1500);
+setInterval(() => { if (mmOpen || (MM && (MM.engine.starting || Object.values(MM.pulls).some(p=>!["success","error"].includes(p.status))))) loadModels(); }, 1500);
 
 function spark(hist){
   if (!hist || hist.length < 2) return `<svg class="spark" viewBox="0 0 96 26"><line x1="1" y1="13" x2="95" y2="13" stroke="var(--line2)" stroke-dasharray="2 3"/></svg>`;

@@ -34,17 +34,21 @@ ENOUGH_GB = 5.0  # bigger models don't do Warden's small jobs noticeably better
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$")
 
 PULLS: dict[str, dict] = {}  # model name -> download progress
+START = {"starting": False, "error": None}  # Warden starting Ollama for you
 _lock = threading.Lock()
 
 
 # ------------------------------------------------------------ hardware ----
+GIB = 1024 ** 3  # memory is sold in GiB: a "24 GB" Mac has 24 GiB
+
+
 def _ram_gb() -> float:
     try:
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / GIB
     except (ValueError, OSError, AttributeError):
         try:
             return int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True,
-                                      text=True, timeout=5).stdout) / 1e9
+                                      text=True, timeout=5).stdout) / GIB
         except Exception:
             return 0.0
 
@@ -92,7 +96,21 @@ def _ollama(method: str, path: str, body: dict | None = None, timeout: float = 5
     req = urllib.request.Request(_native() + path, method=method,
                                  data=json.dumps(body).encode() if body is not None else None,
                                  headers={"Content-Type": "application/json"})
-    return urllib.request.urlopen(req, timeout=timeout)
+    return models.local_opener.open(req, timeout=timeout)
+
+
+OLLAMA_PATHS = ["/opt/homebrew/bin/ollama", "/usr/local/bin/ollama",
+                "/Applications/Ollama.app/Contents/Resources/ollama"]
+
+
+def ollama_binary() -> str | None:
+    """Where Ollama is installed on this computer, if it is."""
+    found = shutil.which("ollama")
+    return found or next((p for p in OLLAMA_PATHS if os.path.isfile(p)), None)
+
+
+def _local_url() -> bool:
+    return re.match(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?(/|$)", models.LOCAL_URL) is not None
 
 
 def engine() -> dict:
@@ -103,7 +121,50 @@ def engine() -> dict:
         pass
     if models.local_status()["reachable"]:
         return {"kind": "openai", "running": True}
-    return {"kind": "none", "running": False}
+    # Installed (e.g. with brew) but its server isn't running: Warden starts it.
+    return {"kind": "none", "running": False, "can_start": _local_url() and ollama_binary() is not None,
+            "starting": START["starting"], "start_error": START["error"]}
+
+
+def _log_path() -> str:
+    return os.path.join(os.path.expanduser("~"), ".warden-ollama.log")
+
+
+def _last_log_line() -> str:
+    try:
+        with open(_log_path(), "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 2000))
+            lines = [ln.strip() for ln in f.read().decode("utf-8", "ignore").splitlines() if ln.strip()]
+        return lines[-1][:200] if lines else ""
+    except OSError:
+        return ""
+
+
+def start_ollama(wait: float = 20) -> dict:
+    """Run `ollama serve` in the background, on the address Warden uses, detached so
+    it keeps running after Warden stops (like the Ollama app does)."""
+    binary = ollama_binary()
+    if not binary or not _local_url():
+        raise RuntimeError("Ollama isn't installed on this computer.")
+    hostport = re.sub(r"^https?://|/v1/?$", "", models.LOCAL_URL.rstrip("/"))
+    START.update(starting=True, error=None)
+    try:
+        with open(_log_path(), "ab") as log:
+            subprocess.Popen([binary, "serve"], stdout=log, stderr=log, stdin=subprocess.DEVNULL,
+                             env={**os.environ, "OLLAMA_HOST": hostport}, start_new_session=True)
+        end = time.time() + wait
+        while time.time() < end:
+            eng = engine()
+            if eng["running"]:
+                models._status_cache["v"] = None
+                return eng
+            time.sleep(0.25)
+        why = _last_log_line()
+        START["error"] = f"Ollama didn't start{': ' + why if why else ''}. Details in {_log_path()}"
+        raise RuntimeError(START["error"])
+    finally:
+        START["starting"] = False
 
 
 def installed(kind: str) -> list[dict]:

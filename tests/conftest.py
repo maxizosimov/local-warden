@@ -1,6 +1,7 @@
 import os
 
 os.environ["WARDEN_LOCAL_URL"] = "http://127.0.0.1:9/v1"  # force rule parser in tests
+os.environ["WARDEN_START_OLLAMA"] = "0"  # tests that need it turn it on
 
 import pytest
 

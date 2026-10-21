@@ -44,8 +44,9 @@ or `buy a $100 gift card` (denied: blocked category).
 
 ## Use a local model
 
-Install [Ollama](https://ollama.com/download) (Mac: `brew install ollama`)
-and open it. Then, in the dashboard under **Who does what → Manage**, Warden
+Install [Ollama](https://ollama.com/download) (Mac: `brew install ollama`).
+Warden finds it and starts it for you. Then, in the dashboard under
+**Who does what → Manage**, Warden
 shows which models fit your computer, downloads the one you pick, and **Test**
 runs its three model jobs so you can see the model handle them. Until a model
 is running, rules do those jobs.

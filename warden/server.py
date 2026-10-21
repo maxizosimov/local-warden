@@ -5,6 +5,7 @@ import csv
 import io
 import html
 import json
+import threading
 import os
 import secrets
 from pathlib import Path
@@ -42,6 +43,8 @@ async def lifespan(_app):
     hub.start_background(float(os.getenv("WARDEN_TICK_SECONDS", "15")),
                          jitter_demo=os.getenv("WARDEN_DEMO_JITTER", "1") == "1")
     hub.log("hub_started", "hub", risk_level=hub.policy.risk_level)
+    if os.getenv("WARDEN_START_OLLAMA", "1") == "1" and local_models.engine().get("can_start"):
+        threading.Thread(target=_start_ollama, args=("hub",), daemon=True).start()
     yield
     hub.stop()
 
@@ -136,6 +139,28 @@ def _model_name(body: dict) -> str:
 @app.get("/api/models", dependencies=[Depends(owner)])
 def models_overview():
     return local_models.overview()
+
+
+def _start_ollama(actor: str) -> dict:
+    """Start an installed Ollama that isn't running. Warden does this itself at launch."""
+    try:
+        eng = local_models.start_ollama()
+    except RuntimeError as e:
+        hub.log("ollama_start_failed", actor, error=str(e))
+        raise
+    hub.log("ollama_started", actor, version=eng.get("version", ""))
+    return eng
+
+
+@app.post("/api/models/start", dependencies=[Depends(owner)])
+def models_start():
+    if local_models.engine()["running"]:
+        return {"status": "running"}
+    try:
+        eng = _start_ollama("user")
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    return {"status": "running", "version": eng.get("version", "")}
 
 
 @app.post("/api/models/pull", dependencies=[Depends(owner)])

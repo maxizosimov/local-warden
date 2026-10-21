@@ -42,13 +42,13 @@ def classify(name: str, hint: str = "", url: str = "") -> str:
     path = re.sub(r"[-_/.]+", " ", url.split("?")[0])
     text = " ".join([name, hint, path])
     by_rule = rule_category(text)  # risky categories are first in RULES, so they win
-    if by_rule:
-        return by_rule
+    return by_rule or model_category(name, hint) or UNKNOWN
+
+
+def model_category(name: str, hint: str = "", timeout: int = 15) -> str | None:
+    """The local model's category for a product, or None if it can't tell."""
     raw = models.local_chat(
         "Classify the product into exactly one of: " + ", ".join(CATEGORIES) +
-        ", unknown. Reply with the category only.", f"{name}\n{hint}", timeout=15)
-    if raw:
-        cat = raw.strip().lower().split()[0].strip(".,'\"") if raw.strip() else ""
-        if cat in CATEGORIES:
-            return cat
-    return UNKNOWN
+        ", unknown. Reply with the category only.", f"{name}\n{hint}", timeout=timeout)
+    cat = raw.lower().split()[0].strip(".,'\"") if raw and raw.strip() else ""
+    return cat if cat in CATEGORIES else None

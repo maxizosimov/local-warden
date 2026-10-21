@@ -47,6 +47,8 @@ class Hub:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.policy_path = self.dir / "policy.json"
         self.policy = Policy.load(self.policy_path)
+        if self.policy.local_model:
+            models.set_local_model(self.policy.local_model)
         self.ledger = Ledger(self.dir / "ledger.db")
         self.db = sqlite3.connect(self.dir / "state.db", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
@@ -98,6 +100,8 @@ class Hub:
                 if k in Policy.__dataclass_fields__:
                     setattr(self.policy, k, v)
             self.policy.risk_level = max(0, min(4, int(self.policy.risk_level)))
+            if self.policy.local_model and self.policy.local_model != models.LOCAL_MODEL:
+                models.set_local_model(self.policy.local_model)
             self.policy.save(self.policy_path)
             changed = {k: [before[k], v] for k, v in updates.items() if k in before and before[k] != v}
             self.log("policy_changed", actor, changes=changed)

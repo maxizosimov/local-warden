@@ -16,6 +16,22 @@ Defined in `warden/models.py` (`ROLES`) and shown in the dashboard.
 Rules always win for gift cards, crypto, firearms and subscriptions, so a
 product page or model answer can't talk its way past a blocked category.
 
+## Picking a local model
+
+**Who does what → Manage** in the dashboard (`warden/local_models.py`):
+
+- **What fits:** Warden reads your memory and chip. Apple Silicon can use about
+  60% of unified memory for a model, an NVIDIA GPU about 90% of its VRAM, and
+  a computer without a GPU is kept to small models (up to about 2.5 GB) so
+  answers stay quick. It recommends the largest fitting model up to about
+  5 GB, since bigger ones don't do Warden's small jobs noticeably better.
+- **Download, use, delete** through Ollama. The model in use is saved as
+  `local_model` in `data/policy.json` and each change is logged.
+- **Test** runs the three model jobs (understand a request, pick a match, tell
+  a category) and marks each one the model answered usefully. A failed job
+  falls back to rules with that model.
+- Any Ollama model name can be downloaded, not just the listed ones.
+
 ## Risk dial
 
 | Level | Name | Goes ahead without asking |
@@ -76,6 +92,7 @@ All in `data/policy.json`, editable from the dashboard (**Hard limits**).
 | `blocked_categories` | gift_cards, crypto, firearms, subscriptions |
 | `pay_merchants` | `[]` (stores where Warden pays) |
 | `frontier_research_allowed` / `frontier_redact_pii` | true / true |
+| `local_model` | `""` (picked in the dashboard; empty uses `WARDEN_LOCAL_MODEL`) |
 
 | Environment | |
 |---|---|
@@ -149,6 +166,7 @@ and `WARDEN_AGENT_TOKEN=<token>` for `./mcp.sh`.
 ```
 warden/
   models.py        who does what: local model jobs, rule fallbacks, frontier research
+  local_models.py  what fits this computer; download, switch and test models via Ollama
   categories.py    product categories (rules first, then local model)
   policy.py        risk dial and hard limits (pure function)
   hub.py           the flow: request → pick → policy → approval → handoff/order

@@ -25,6 +25,11 @@ product page or model answer can't talk its way past a blocked category.
   a computer without a GPU is kept to small models (up to about 2.5 GB) so
   answers stay quick. It recommends the largest fitting model up to about
   5 GB, since bigger ones don't do Warden's small jobs noticeably better.
+- **Starting Ollama:** if Ollama is installed (Homebrew or the Ollama app) but
+  stopped, Warden starts it when it launches, on the address Warden uses, and
+  leaves it running. If that fails, the dashboard shows why (from
+  `~/.warden-ollama.log`) with a retry button. Set `WARDEN_START_OLLAMA=0` to
+  turn this off. Requests to the local model never go through a proxy.
 - **Download, use, delete** through Ollama. The model in use is saved as
   `local_model` in `data/policy.json` and each change is logged.
 - **Test** runs the three model jobs (understand a request, pick a match, tell
@@ -96,7 +101,8 @@ All in `data/policy.json`, editable from the dashboard (**Hard limits**).
 
 | Environment | |
 |---|---|
-| `WARDEN_LOCAL_URL`, `WARDEN_LOCAL_MODEL` | Local model (default Ollama, `llama3.2`) |
+| `WARDEN_LOCAL_URL`, `WARDEN_LOCAL_MODEL` | Local model (default: Ollama at `OLLAMA_HOST`, else `localhost:11434`; model `llama3.2`) |
+| `WARDEN_START_OLLAMA` | `1` (default) starts an installed, stopped Ollama when Warden launches |
 | `ANTHROPIC_API_KEY` or `WARDEN_FRONTIER_PROVIDER=openai` + `OPENAI_API_KEY` | Frontier research |
 | `WARDEN_WEBHOOK_URL` | Push approvals and alerts to ntfy.sh, Slack, etc. |
 | `WARDEN_HOST`, `WARDEN_PORT`, `WARDEN_DATA` | Where the hub listens and stores data |

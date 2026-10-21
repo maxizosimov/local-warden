@@ -172,3 +172,106 @@ def test_cpu_only_says_slow_not_too_big(ollama, monkeypatch):
     assert by_name["llama3.2:3b"]["misfit"] is None and by_name["llama3.2:3b"]["recommended"]
     assert by_name["qwen2.5:7b"]["misfit"] == "slow without a GPU"
     assert by_name["gemma3:12b"]["misfit"] == "too big"
+
+
+def test_memory_reported_like_macos(monkeypatch):
+    sizes = {"SC_PAGE_SIZE": 16384, "SC_PHYS_PAGES": 24 * 1024 ** 3 // 16384}
+    monkeypatch.setattr(local_models.os, "sysconf", lambda k: sizes[k])
+    assert local_models._ram_gb() == 24.0  # a "24 GB" Mac, not 25.8
+
+
+@pytest.fixture
+def stopped_ollama(tmp_path, monkeypatch):
+    """An installed-but-stopped Ollama: a fake `ollama` binary whose `serve`
+    listens wherever OLLAMA_HOST says, like the real one."""
+    import socket
+    import subprocess
+    import sys
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    pidfile = tmp_path / "pid"
+    fake = tmp_path / "ollama"
+    fake.write_text(f"""#!{sys.executable}
+import json, os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+open({str(pidfile)!r}, "w").write(str(os.getpid()))
+host, port = os.environ["OLLAMA_HOST"].rsplit(":", 1)
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(json.dumps({{"version": "0.12.3"}}).encode())
+HTTPServer((host, int(port)), H).serve_forever()
+""")
+    fake.chmod(0o755)
+    monkeypatch.setattr(models, "LOCAL_URL", f"http://127.0.0.1:{port}/v1")
+    monkeypatch.setattr(local_models, "ollama_binary", lambda: str(fake))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    models._status_cache["v"] = None
+    yield fake
+    if pidfile.exists():
+        subprocess.run(["kill", pidfile.read_text()])
+    local_models.START.update(starting=False, error=None)
+
+
+def test_stopped_ollama_started_from_dashboard(api, stopped_ollama):
+    """`brew install ollama` doesn't start the server; Warden recognizes that and starts it."""
+    _, c = api
+    eng = c.get("/api/models").json()["engine"]
+    assert eng["kind"] == "none" and eng["can_start"] and not eng["starting"]
+    assert c.post("/api/models/start").json() == {"status": "running", "version": "0.12.3"}
+    assert c.get("/api/models").json()["engine"]["running"]
+
+
+def test_warden_starts_ollama_itself_at_launch(api, stopped_ollama, monkeypatch):
+    server, c = api
+    monkeypatch.setenv("WARDEN_START_OLLAMA", "1")
+    with c:  # runs startup, like ./run.sh
+        assert wait_for(lambda: local_models.engine()["running"], 15)
+    assert wait_for(lambda: any(e["kind"] == "ollama_started" and e["actor"] == "hub"
+                                for e in server.hub.ledger.list()))
+
+
+def test_failed_start_explains_why(stopped_ollama):
+    stopped_ollama.write_text("#!/bin/sh\necho 'Error: listen tcp 127.0.0.1:11434: bind: address already in use'\n")
+    with pytest.raises(RuntimeError, match="address already in use"):
+        local_models.start_ollama(wait=1)
+    eng = local_models.engine()
+    assert "address already in use" in eng["start_error"] and not eng["starting"]
+
+
+@pytest.mark.parametrize("env,url", [
+    ({}, "http://localhost:11434/v1"),
+    ({"OLLAMA_HOST": "0.0.0.0:11500"}, "http://127.0.0.1:11500/v1"),
+    ({"OLLAMA_HOST": "http://127.0.0.1:11600"}, "http://127.0.0.1:11600/v1"),
+    ({"OLLAMA_HOST": "127.0.0.1"}, "http://127.0.0.1:11434/v1"),
+    ({"OLLAMA_HOST": "0.0.0.0:11500", "WARDEN_LOCAL_URL": "http://localhost:1234/v1"}, "http://localhost:1234/v1"),
+])
+def test_finds_ollama_where_it_listens(monkeypatch, env, url):
+    for k in ("OLLAMA_HOST", "WARDEN_LOCAL_URL"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    assert models._default_local_url() == url
+
+
+def test_no_start_offer_without_ollama_or_for_remote_servers(monkeypatch):
+    monkeypatch.setattr(models, "LOCAL_URL", "http://127.0.0.1:9/v1")
+    models._status_cache["v"] = None
+    monkeypatch.setattr(local_models, "ollama_binary", lambda: None)
+    assert local_models.engine()["can_start"] is False
+    monkeypatch.setattr(local_models, "ollama_binary", lambda: "/opt/homebrew/bin/ollama")
+    monkeypatch.setattr(models, "LOCAL_URL", "http://192.0.2.1:9/v1")  # someone else's server
+    monkeypatch.setattr(models, "local_status", lambda: {"reachable": False})
+    assert local_models.engine()["can_start"] is False
+
+
+def test_local_model_ignores_proxy_settings(ollama, monkeypatch):
+    """A system/VPN proxy must not hide a running Ollama on this machine."""
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("no_proxy", "")
+    monkeypatch.setenv("NO_PROXY", "")
+    models._status_cache["v"] = None
+    assert local_models.engine()["running"] and models.local_status()["reachable"]
+    assert models.local_chat("Pick one. Reply with its number only.", "x") == "2"

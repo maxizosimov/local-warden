@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Keep AI tools out of git authorship (see AGENTS.md).
+msg="$1"
+ai='claude|anthropic|copilot|cursor|openai|chatgpt|codex|gemini|devin|aider'
+
+case "$(git var GIT_AUTHOR_IDENT) $(git var GIT_COMMITTER_IDENT)" in
+  *noreply@anthropic.com*|*[Cc]laude\ \<*)
+    echo "commit-msg: author/committer is an AI tool. Run: git config user.name/user.email (see AGENTS.md)" >&2
+    exit 1 ;;
+esac
+
+# Drop attribution lines, then trailing blank lines.
+tmp="$(mktemp)"
+grep -viE "^co-authored-by:.*($ai)|^claude-session:|generated (with|by) \[?($ai)|claude\.ai/code" "$msg" > "$tmp" || true
+sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp" > "$msg"
+rm -f "$tmp"

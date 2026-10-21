@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#09090b; --bg2:#0d0d10; --panel:#111114; --panel2:#16161a; --hover:#1b1b20;
+  --line:#1f1f25; --line2:#2a2a31;
+  --ink:#ececef; --ink2:#b4b4bc; --mute:#77777f; --faint:#4a4a52;
+  --up:#34d399; --up-bg:rgba(52,211,153,.09);
+  --down:#f87171; --down-bg:rgba(248,113,113,.09);
+  --amber:#fbbf24; --amber-bg:rgba(251,191,36,.08);
+  --agent:#8b7cf6; --agent-bg:rgba(139,124,246,.10);
+  --blue:#60a5fa;
+  --r:10px; --monof:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--ink);font:13px/1.5 Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(1200px 500px at 50% -200px,rgba(139,124,246,.07),transparent 70%),var(--bg)}
+.mono,.num{font-family:var(--monof)}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+a{color:var(--ink2)}
+::selection{background:var(--agent-bg)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}::-webkit-scrollbar-track{background:transparent}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;height:48px;padding:0 20px;
+  border-bottom:1px solid var(--line);background:rgba(9,9,11,.8);backdrop-filter:blur(12px)}
+.logo{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.01em}
+.mark{width:20px;height:20px;border-radius:6px;background:conic-gradient(from 210deg,var(--agent),var(--up),var(--agent));position:relative}
+.mark::after{content:"";position:absolute;inset:5px;border-radius:2px;background:var(--bg)}
+.crumb{color:var(--mute);font-size:12.5px}.crumb b{color:var(--ink2);font-weight:500}
+.status{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.st{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border:1px solid var(--line);border-radius:6px;font:11.5px var(--monof);color:var(--ink2);background:var(--panel)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--faint)}
+.dot.up{background:var(--up);box-shadow:0 0 8px var(--up)}.dot.amber{background:var(--amber)}.dot.down{background:var(--down);box-shadow:0 0 8px var(--down)}
+
+.wrap{max-width:1360px;margin:0 auto;padding:20px}
+
+/* KPI strip */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);border-radius:var(--r);background:var(--panel);overflow:hidden;margin-bottom:16px}
+.kpi{padding:14px 16px;border-right:1px solid var(--line);min-width:0}
+.kpi:last-child{border-right:0}
+.kpi .l{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em;display:flex;justify-content:space-between}
+.kpi .v{font:500 24px var(--monof);font-variant-numeric:tabular-nums;letter-spacing:-.03em;margin-top:4px}
+.kpi .v small{font-size:13px;color:var(--mute);font-weight:400;letter-spacing:0}
+.kpi .s{font-size:11.5px;color:var(--mute);margin-top:2px}
+.track{height:3px;background:var(--line2);border-radius:3px;margin-top:9px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--up);border-radius:3px;transition:width .5s}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.kpi{border-bottom:1px solid var(--line)}.kpi:nth-child(2n){border-right:0}.kpi:last-child{grid-column:1/-1}}
+
+/* layout */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px}
+@media (max-width:1060px){.grid{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.ph{display:flex;align-items:center;gap:8px;height:42px;padding:0 14px;border-bottom:1px solid var(--line)}
+.ph h3{margin:0;font-size:12.5px;font-weight:500;color:var(--ink2)}
+.ph .count{font:11px var(--monof);color:var(--mute);background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:0 6px}
+.ph .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pb{padding:14px}
+.empty{color:var(--mute);font-size:12.5px;padding:18px 14px;text-align:center}
+
+/* composer */
+.composer{border:1px solid var(--line2);border-radius:12px;background:var(--bg2);transition:border-color .15s,box-shadow .15s}
+.composer:focus-within{border-color:rgba(139,124,246,.55);box-shadow:0 0 0 3px rgba(139,124,246,.12)}
+.composer form{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px}
+.composer .glyph{color:var(--agent);font:500 15px var(--monof)}
+.composer input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--ink);font:14px Inter,sans-serif;padding:8px 0}
+.composer input::placeholder{color:var(--faint)}
+.kbd{font:11px var(--monof);color:var(--mute);border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+.composer .foot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--mute);flex-wrap:wrap}
+.model{display:flex;align-items:center;gap:6px;font-family:var(--monof)}
+.sugs{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.sug{font:12px Inter;color:var(--ink2);background:transparent;border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer;transition:.15s}
+.sug:hover{border-color:var(--line2);background:var(--hover);color:var(--ink)}
+
+button{font:500 12.5px Inter,sans-serif;cursor:pointer;border-radius:7px;transition:.15s}
+.btn{height:32px;padding:0 14px;border:1px solid transparent;background:var(--ink);color:var(--bg)}
+.btn:hover{background:#fff}
+.btn.sm{height:26px;padding:0 10px;font-size:12px}
+.btn.ghost{background:transparent;color:var(--ink2);border-color:var(--line2)}
+.btn.ghost:hover{background:var(--hover);color:var(--ink)}
+.btn.ok{background:var(--up);color:#04140d}.btn.ok:hover{filter:brightness(1.1)}
+.btn.no{background:transparent;color:var(--down);border-color:rgba(248,113,113,.35)}.btn.no:hover{background:var(--down-bg)}
+
+/* trace */
+.trace{margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);overflow:hidden;display:none}
+.trace.show{display:block;animation:in .25s ease}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}}
+.trace .head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.trace .msg{font-size:13px}
+.step{display:grid;grid-template-columns:18px 76px 1fr;gap:8px;padding:7px 12px;font-size:12px;align-items:start}
+.step .ic{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--faint);margin-top:2px;position:relative}
+.step .ic.done{border-color:var(--up);background:var(--up-bg)}
+.step .ic.done::after{content:"";position:absolute;left:3.5px;top:1.5px;width:3px;height:6px;border:solid var(--up);border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.step .ic.warn{border-color:var(--amber);background:var(--amber-bg)}.step .ic.bad{border-color:var(--down);background:var(--down-bg)}
+.step .k{font:11.5px var(--monof);color:var(--mute)}
+.step .d{color:var(--ink2);word-break:break-word}
+.trace pre{margin:0;padding:12px;border-top:1px solid var(--line);white-space:pre-wrap;font:12px/1.6 var(--monof);color:var(--ink2);max-height:240px;overflow:auto}
+.spin{width:12px;height:12px;border:1.5px solid var(--line2);border-top-color:var(--agent);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(1turn)}}
+
+/* badges */
+.b{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:5px;font:11px var(--monof);white-space:nowrap;
+  color:var(--ink2);background:var(--panel2);border:1px solid var(--line)}
+.b::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
+.b.paid,.b.ordered,.b.delivered,.b.allow,.b.active,.b.researched{color:var(--up);background:var(--up-bg);border-color:transparent}
+.b.pending,.b.awaiting_approval,.b.require_approval,.b.triggered,.b.monitoring,.b.shipped,.b.out_for_delivery,.b.processing,.b.placed{color:var(--amber);background:var(--amber-bg);border-color:transparent}
+.b.placed,.b.processing{color:var(--blue);background:rgba(96,165,250,.09)}
+.b.denied,.b.deny,.b.rejected,.b.cancelled,.b.failed,.b.aborted,.b.no_match{color:var(--down);background:var(--down-bg);border-color:transparent}
+.b.agent{color:var(--agent);background:var(--agent-bg);border-color:transparent}
+.b.handed_off{color:var(--agent);background:var(--agent-bg);border-color:transparent}
+.b.as_proposed{color:var(--up);background:var(--up-bg);border-color:transparent}
+.b.changed{color:var(--amber);background:var(--amber-bg);border-color:transparent}
+.b.skipped{color:var(--mute)}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th{font:500 11px Inter;color:var(--mute);text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr{transition:background .12s}tbody tr:hover{background:var(--hover)}
+th.r,td.r{text-align:right}
+.scroll{overflow-x:auto}
+.sub{font-size:11.5px;color:var(--mute)}
+.name{color:var(--ink);font-weight:500}
+.up{color:var(--up)}.down{color:var(--down)}
+.chg{font:12px var(--monof);font-variant-numeric:tabular-nums}
+.steps{display:flex;gap:3px}.steps i{width:16px;height:4px;border-radius:2px;background:var(--line2)}.steps i.on{background:var(--up)}
+svg.spark{width:96px;height:26px;display:block}
+
+/* approvals */
+.ap{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px;border-bottom:1px solid var(--line);position:relative}
+.ap:last-child{border-bottom:0}
+.ap::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;border-radius:2px;background:var(--amber)}
+.ap .amt{font:500 20px var(--monof);font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-align:right}
+.ap .why{margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)}
+.ap .why li::before{content:"→ ";color:var(--faint)}
+.ap .acts{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
+
+/* handoffs */
+.ho{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px;border-bottom:1px solid var(--line);position:relative}
+.ho:last-child{border-bottom:0}
+.ho::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;border-radius:2px;background:var(--agent)}
+.ho .amt{font:500 20px var(--monof);font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-align:right}
+.ho .acts{display:flex;gap:6px;justify-content:flex-end;align-items:center;margin-top:8px;flex-wrap:wrap}
+.ho input{width:92px;height:26px;padding:0 8px;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--ink);font:12px var(--monof);outline:0;text-align:right}
+.ho input:focus{border-color:rgba(139,124,246,.55)}
+a.btn{display:inline-flex;align-items:center;text-decoration:none}
+@media (max-width:600px){.ho,.ap{grid-template-columns:1fr}.ho .amt,.ap .amt{text-align:left}.ho .acts,.ap .acts{justify-content:flex-start}}
+
+/* who does what */
+.role{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12.5px}
+.role:last-child{border-bottom:0}
+.role .by{display:flex;align-items:center;gap:6px;font:11.5px var(--monof);color:var(--ink2);justify-content:flex-end;text-align:right}
+.role .fb{grid-column:1/-1;font-size:11px;color:var(--faint)}
+.tag{font:500 10.5px var(--monof);text-transform:uppercase;letter-spacing:.06em;color:var(--amber)}
+.ho .tag{color:var(--agent)}
+
+/* track record */
+.tr{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line)}
+.tr>div{padding:12px 14px;border-right:1px solid var(--line);min-width:0}.tr>div:last-child{border-right:0}
+.tr .l{font-size:10.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.tr .v{font:500 18px var(--monof);font-variant-numeric:tabular-nums;margin-top:2px}
+.sugg .btn{flex:none;white-space:nowrap}
+.sugg{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--up-bg);font-size:12px;color:var(--ink2)}
+
+/* token gate */
+.gate{position:fixed;inset:0;z-index:20;display:none;place-items:center;background:rgba(9,9,11,.92);padding:16px}
+.gate.show{display:grid}
+.gate .c{max-width:440px;width:100%;border:1px solid var(--line2);border-radius:12px;background:var(--panel);padding:22px}
+.gate input{width:100%;height:34px;margin:12px 0;padding:0 10px;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--ink);font:12.5px var(--monof);outline:0}
+
+/* risk dial */
+.dialwrap{padding:16px 14px 6px}
+.rl{display:flex;align-items:baseline;justify-content:space-between}
+.rl .lvl{font:500 28px var(--monof);letter-spacing:-.03em}
+.rl .nm{font-size:13px;font-weight:500}
+.dial{position:relative;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:12px 0 8px}
+.dial button{height:30px;border:1px solid var(--line);background:var(--bg2);color:var(--mute);font:500 12px var(--monof);border-radius:6px}
+.dial button:hover{border-color:var(--line2);color:var(--ink)}
+.dial button.lit{color:#0b0b0d;border-color:transparent}
+.dlabels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.ddesc{font-size:12.5px;color:var(--ink2);margin:12px 0 4px;min-height:2.8em}
+.limits{border-top:1px solid var(--line)}
+.limits summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:11px 14px;font-size:12.5px;color:var(--ink2)}
+.limits summary::-webkit-details-marker{display:none}
+.limits summary::after{content:"+";font:14px var(--monof);color:var(--mute)}
+.limits[open] summary::after{content:"−"}
+.lf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;padding:0 14px 14px}
+.lf label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--mute)}
+.lf .w{grid-column:1/-1}
+.lf input[type=number],.lf input[type=text],.lf input:not([type]){height:32px;padding:0 10px;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--ink);font:12.5px var(--monof);outline:0}
+.lf input{min-width:0;width:100%}
+.lf input:focus{border-color:rgba(139,124,246,.55)}
+.tog{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;color:var(--ink2)!important;font-size:12px!important;cursor:pointer}
+.tog input{appearance:none;width:28px;height:16px;border-radius:9px;background:var(--line2);position:relative;cursor:pointer;flex:none;transition:.15s;margin:0}
+.tog input::after{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:var(--ink2);transition:.15s}
+.tog input:checked{background:var(--up)}.tog input:checked::after{left:14px;background:#04140d}
+
+/* activity stream */
+.feed{max-height:560px;overflow:auto;padding:4px 0}
+.ev{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:8px 14px;position:relative}
+.ev:hover{background:var(--hover)}
+.ev .rail{display:flex;flex-direction:column;align-items:center;padding-top:5px}
+.ev .rail i{width:7px;height:7px;border-radius:2px;background:var(--faint)}
+.ev .top1{display:flex;gap:8px;align-items:baseline}
+.ev .kind{font:500 11.5px var(--monof);color:var(--ink)}
+.ev .act{font:11px var(--monof);color:var(--mute)}
+.ev .t{margin-left:auto;font:11px var(--monof);color:var(--faint);white-space:nowrap}
+.ev .d{font-size:12px;color:var(--ink2);word-break:break-word;margin-top:1px}
+.ev .h{font:10px var(--monof);color:var(--faint);margin-top:2px}
+.k-order_placed i,.k-handoff_paid i{background:var(--up)!important}.k-handoff_created i{background:var(--agent)!important}.k-policy_decision i{background:var(--agent)!important}
+.k-monitor_triggered i,.k-notify i{background:var(--amber)!important}.k-payment_token_minted i{background:var(--blue)!important}
+.k-intent_rejected i,.k-approval_rejected i,.k-execution_aborted i,.k-order_failed i{background:var(--down)!important}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,8px);background:var(--panel2);color:var(--ink);border:1px solid var(--line2);padding:9px 14px;border-radius:9px;
+  font-size:12.5px;opacity:0;transition:.2s;pointer-events:none;max-width:90vw;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-details-marker{display:none}
+@media (max-width:600px){.composer .kbd{display:none}.wrap{padding:12px 16px}.top{padding:0 16px}.crumb{display:none}.status .st:nth-child(2){display:none}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo"><span class="mark"></span>Warden</div>
+  <div class="crumb">/ <b>local workspace</b> / spend control</div>
+  <div class="status" id="ledger"></div>
+</div>
+
+<div class="wrap">
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="col">
+
+      <div class="panel">
+        <div class="pb">
+          <div class="composer">
+            <form id="cmdForm">
+              <span class="glyph">›</span>
+              <input id="cmd" autocomplete="off" placeholder="Ask your agent to buy, watch, or research something…">
+              <span class="kbd">⌘K</span>
+              <button class="btn sm">Run</button>
+            </form>
+            <div class="foot">
+              <span class="model" id="modelFoot"></span>
+              <span style="margin-left:auto" id="modeFoot"></span>
+            </div>
+          </div>
+          <div class="sugs" id="chips"></div>
+          <div class="trace" id="result"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Needs you</h3><span class="count" id="inCount">0</span><span class="right sub">approve, then pay at the store</span></div>
+        <div id="inbox"></div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Watchlist</h3><span class="count" id="monCount">0</span><span class="right sub">price monitors</span></div>
+        <div class="scroll"><table id="monitors"></table></div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Transactions</h3><span class="count" id="ordCount">0</span>
+          <span class="right"><button class="btn ghost sm" type="button" id="csv">Export CSV</button></span></div>
+        <div class="scroll"><table id="orders"></table></div>
+      </div>
+
+      <details class="panel sim">
+        <summary class="ph" style="border-bottom:0"><h3>Market simulator</h3><span class="b agent">demo-store</span><span class="right sub">trigger sales to test monitors ▾</span></summary>
+        <div class="scroll" style="border-top:1px solid var(--line)"><table id="catalog"></table></div>
+      </details>
+    </div>
+
+    <div class="col">
+      <div class="panel">
+        <div class="ph"><h3>Who does what</h3><span class="right sub" id="localState"></span></div>
+        <div id="roles"></div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Risk dial</h3><span class="right sub">autonomy inside hard limits</span></div>
+        <div class="dialwrap">
+          <div class="rl"><span class="lvl num" id="lvlNum">1</span><span class="nm" id="lvlName"></span></div>
+          <div class="dial" id="dial"></div>
+          <div class="dlabels"><span>Observe</span><span>Autonomous</span></div>
+          <div class="ddesc" id="dialDesc"></div>
+        </div>
+        <details class="limits">
+          <summary>Hard limits</summary>
+          <form class="lf" id="limits">
+            <label>Max per purchase<input name="max_per_transaction" type="number" step="1"></label>
+            <label>Auto-approve under<input name="auto_approve_under" type="number" step="1"></label>
+            <label>Daily cap<input name="daily_cap" type="number" step="1"></label>
+            <label>Monthly cap<input name="monthly_cap" type="number" step="1"></label>
+            <label class="w">Approved merchants<input name="allowed_merchants" type="text"></label>
+            <label class="w">Blocked merchants<input name="blocked_merchants" type="text"></label>
+            <label class="w">Blocked categories<input name="blocked_categories" type="text"></label>
+            <label class="w">Warden pays at (trusted merchants)<input name="pay_merchants" type="text"></label>
+            <label class="w tog"><input type="checkbox" name="frontier_research_allowed"> Frontier model may research (never pays)</label>
+            <label class="w tog"><input type="checkbox" name="frontier_redact_pii"> Redact personal info before it leaves device</label>
+            <button class="btn w" style="height:34px">Save limits</button>
+          </form>
+        </details>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Track record</h3><span class="right sub">proposals you paid</span></div>
+        <div id="track"></div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Activity</h3><span class="right mono sub" id="ledgerHead"></span></div>
+        <div class="feed" id="feed"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="gate" id="gate"><form class="c" id="gateForm">
+  <div class="logo"><span class="mark"></span>Warden</div>
+  <p class="sub" style="margin:12px 0 0">Open the link the hub printed in your terminal, or paste the owner token from <span class="mono">data/owner_token</span>. Don't give this token to your agent; it gets <span class="mono">data/agent_token</span>.</p>
+  <input id="gateTok" placeholder="owner token" autocomplete="off">
+  <button class="btn" style="width:100%">Unlock</button>
+</form></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = n => n == null ? "—" : "$" + Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const ago = ts => { const s = Date.now()/1000 - ts; return s<60? Math.floor(s)+"s" : s<3600? Math.floor(s/60)+"m" : s<86400? Math.floor(s/3600)+"h" : Math.floor(s/86400)+"d"; };
+// Owner token: arrives once in the URL fragment (never sent to the server in a URL), then kept in this browser.
+let OWNER = "";
+try { OWNER = localStorage.getItem("warden_owner") || ""; } catch(e){}
+const setOwner = t => { OWNER = t; try { localStorage.setItem("warden_owner", t); } catch(e){} };
+const takeHashToken = () => { const t = new URLSearchParams(location.hash.slice(1)).get("owner");
+  if (t){ setOwner(t); history.replaceState(null, "", location.pathname); } return !!t; };
+takeHashToken();
+addEventListener("hashchange", () => { if (takeHashToken()){ refresh(); loadCatalog(); } });
+const raw = (path, opts={}) => fetch(path, {...opts, headers:{"Content-Type":"application/json","X-Warden-Owner":OWNER},
+  body: opts.body ? JSON.stringify(opts.body) : undefined});
+const api = async (path, opts={}) => {
+  const r = await raw(path, opts);
+  const j = await r.json().catch(()=>({}));
+  if (r.status === 401){ $("#gate").classList.add("show"); throw new Error("owner token required"); }
+  if (!r.ok) throw new Error(j.detail || r.statusText);
+  $("#gate").classList.remove("show");
+  return j;
+};
+const toast = msg => { const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),3000); };
+const label = s => String(s||"").replace(/_/g," ");
+
+$("#gateForm").onsubmit = e => { e.preventDefault(); setOwner($("#gateTok").value.trim()); refresh(); loadCatalog(); };
+$("#csv").onclick = async () => { const r = await raw("/api/export/orders.csv"); if (!r.ok) return toast("Export failed");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = "warden-orders.csv"; a.click(); };
+
+document.addEventListener("keydown", e => { if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); $("#cmd").focus(); } });
+
+const EXAMPLES = ["buy gel pens","buy a chair, my back hurts","buy the propane grill when it's 25% off","find me the best office chair under 200"];
+$("#chips").innerHTML = EXAMPLES.map(e=>`<button class="sug" type="button">${esc(e)}</button>`).join("");
+$("#chips").onclick = e => { if (e.target.matches(".sug")) { $("#cmd").value = e.target.textContent; $("#cmd").focus(); } };
+
+const RISK = [["Observe","Research and monitor only. No purchases, ever."],["Ask always","Every purchase waits for your approval."],
+  ["Guarded","Small buys at approved merchants go through; everything else asks."],["Trusted","Small buys at any non-blocked merchant go through; bigger ones ask."],
+  ["Autonomous","Anything inside your hard limits goes through without asking."]];
+const RCOL = ["#77777f","#60a5fa","#34d399","#fbbf24","#f87171"];
+$("#dial").innerHTML = RISK.map((r,i)=>`<button type="button" data-l="${i}" title="${r[0]}">${i}</button>`).join("");
+$("#dial").onclick = async e => { const b=e.target.closest("button"); if(!b) return;
+  await api("/api/policy",{method:"PUT",body:{risk_level:+b.dataset.l}}); toast(`Risk level ${b.dataset.l} · ${RISK[b.dataset.l][0]}`); refresh(); };
+
+let S = null, limitsDirty = false;
+$("#limits").oninput = () => limitsDirty = true;
+$("#limits").onsubmit = async e => {
+  e.preventDefault(); const f = new FormData(e.target), body = {};
+  for (const k of ["max_per_transaction","auto_approve_under","daily_cap","monthly_cap"]) body[k] = +f.get(k);
+  for (const k of ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"]) body[k] = (f.get(k)||"").split(",").map(s=>s.trim()).filter(Boolean);
+  body.frontier_research_allowed = !!f.get("frontier_research_allowed"); body.frontier_redact_pii = !!f.get("frontier_redact_pii");
+  await api("/api/policy",{method:"PUT",body}); limitsDirty=false; toast("Limits saved · change written to ledger"); refresh();
+};
+
+$("#cmdForm").onsubmit = async e => {
+  e.preventDefault(); const text = $("#cmd").value.trim(); if (!text) return;
+  const box = $("#result"); box.className = "trace show";
+  box.innerHTML = `<div class="head"><span class="spin"></span><span class="msg" style="color:var(--mute)">Agent working…</span></div>`;
+  try { const r = await api("/api/tasks",{method:"POST",body:{text}}); showResult(r); $("#cmd").value=""; }
+  catch(err){ box.innerHTML = `<div class="head"><span class="b failed">error</span><span class="msg">${esc(err.message)}</span></div>`; }
+  refresh();
+};
+
+function showResult(r){
+  const box = $("#result"); box.className = "trace show";
+  const P = r.parsed, dec = r.decision;
+  const cond = [P.merchant&&`merchant=${P.merchant}`, P.max_price&&`max=$${P.max_price}`, P.min_discount_pct&&`discount≥${P.min_discount_pct}%`, P.quantity>1&&`qty=${P.quantity}`].filter(Boolean).join(" · ");
+  const by = who => `<span class="sub"> · ${esc(who)}</span>`;
+  const steps = [["done","understand",`<span class="b agent">${esc(P.type)}</span> "${esc(P.query)}" ${cond?`<span class="sub">${esc(cond)}</span>`:""}${by(r.parser)}`]];
+  if (r.note) steps.push(["warn","store",esc(r.note)]);
+  if (r.product) steps.push(["done","pick",`${esc(r.product.name)} <span class="num">${money(r.product.price)}</span>${r.picked_by?by(r.picked_by):""}`]);
+  if (dec) steps.push([dec.outcome==="allow"?"done":dec.outcome==="deny"?"bad":"warn","policy",`<span class="b ${dec.outcome}">${label(dec.outcome)}</span> ${dec.reasons.map(esc).join(" ")}${by("policy engine")}`]);
+  if (r.status==="awaiting_approval") steps.push(["warn","you","approve it under Needs you"]);
+  if (r.status==="handed_off") steps.push(["done","you",`pay at the store · <span class="num">${money(r.expected_total)}</span> · no card used <a class="btn ghost sm" style="margin-left:6px" href="${esc(r.cart_url)}" target="_blank" rel="noopener">Open cart</a>`]);
+  if (r.status==="ordered") steps.push(["done","execute",`single-use token → order <span class="mono">${esc(r.merchant_order_id)}</span>`]);
+  if (r.sent_to_frontier) steps.push(["done","research",`sent off-device (redacted): <span class="mono">"${esc(r.sent_to_frontier)}"</span>`]);
+  if (r.status==="researched") steps.push(["done","you","pick a match below; buying still goes through policy"]);
+  let h = `<div class="head"><span class="b ${r.status}">${label(r.status)}</span><span class="msg">${esc(r.message||"")}</span></div>`;
+  h += steps.map(([c,k,d])=>`<div class="step"><span class="ic ${c}"></span><span class="k">${k}</span><span class="d">${d}</span></div>`).join("");
+  if (r.answer) h += `<pre>${esc(r.answer)}</pre>`;
+  const list = r.matches || r.candidates;
+  if (list && list.length) h += `<table style="border-top:1px solid var(--line)"><tbody>` + list.map(p=>`<tr><td><span class="name">${esc(p.name)}</span><div class="sub mono">${esc(p.sku)}</div></td>
+     <td class="r num">${money(p.price)}</td><td class="r"><button class="btn ghost sm" data-buy="${esc(p.sku)}">Buy via policy</button></td></tr>`).join("") + `</tbody></table>`;
+  box.innerHTML = h;
+}
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-buy],[data-ap],[data-sale],[data-watch],[data-unwatch],[data-paid],[data-skip],[data-trust]"); if (!b) return;
+  try {
+    if (b.dataset.buy){ const r = await api("/api/buy",{method:"POST",body:{merchant:"demo-store",sku:b.dataset.buy,quantity:1}}); toast(r.message||r.status); }
+    if (b.dataset.ap){ const [id,act]=b.dataset.ap.split(":"); const r = await api(`/api/approvals/${id}/${act}`,{method:"POST"}); toast(r.message||label(r.status)); }
+    if (b.dataset.sale){ const [sku,pct]=b.dataset.sale.split(":"); const r = await api("/api/demo/sale",{method:"POST",body:{sku,pct_off:+pct}});
+      toast(`${r.product.name} → ${money(r.product.price)}` + (r.fired.length?` · ${r.fired.length} monitor fired`:"")); loadCatalog(); }
+    if (b.dataset.watch){ const pct = prompt("Trigger at what % off?", "20"); if(pct==null) return;
+      const act = confirm("OK = buy automatically (still subject to policy)\nCancel = notify only") ? "buy":"notify";
+      await api("/api/monitors",{method:"POST",body:{merchant:"demo-store",sku:b.dataset.watch,min_discount_pct:+pct,action:act}}); toast("Added to watchlist"); }
+    if (b.dataset.paid){ const amt = +$(`#amt-${b.dataset.paid}`).value;
+      const r = await api(`/api/orders/${b.dataset.paid}/paid`,{method:"POST",body:{amount:amt}}); toast(r.message||r.status); }
+    if (b.dataset.skip){ const r = await api(`/api/orders/${b.dataset.skip}/skip`,{method:"POST"}); toast(r.message||r.status); }
+    if (b.dataset.trust){ const pm = [...new Set([...(S.policy.pay_merchants||[]), b.dataset.trust])];
+      await api("/api/policy",{method:"PUT",body:{pay_merchants:pm}}); toast(`Warden now pays at ${b.dataset.trust} (simulated)`); }
+    if (b.dataset.unwatch){ await api(`/api/monitors/${b.dataset.unwatch}`,{method:"DELETE"}); toast("Monitor stopped"); }
+  } catch(err){ toast(err.message); }
+  refresh();
+});
+
+function spark(hist){
+  if (!hist || hist.length < 2) return `<svg class="spark" viewBox="0 0 96 26"><line x1="1" y1="13" x2="95" y2="13" stroke="var(--line2)" stroke-dasharray="2 3"/></svg>`;
+  const ys = hist.map(h=>h[1]), lo=Math.min(...ys), hi=Math.max(...ys), span = hi-lo || 1;
+  const col = ys[ys.length-1] < ys[0] ? "var(--up)" : ys[ys.length-1] > ys[0] ? "var(--down)" : "var(--mute)";
+  const pts = ys.map((y,i)=>[(i/(ys.length-1)*94+1), (23-(y-lo)/span*20)]);
+  const line = pts.map(p=>p.map(v=>v.toFixed(1)).join(",")).join(" ");
+  const id = "g"+Math.random().toString(36).slice(2,7);
+  return `<svg class="spark" viewBox="0 0 96 26"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".25"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="1,26 ${line} 95,26" fill="url(#${id})"/><polyline points="${line}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+const STAGES = ["placed","processing","shipped","out_for_delivery","delivered"];
+
+function evText(e){
+  const d = e.data;
+  switch(e.kind){
+    case "task_received": return `"${d.text}" → ${d.parsed.type} · ${d.parser}`;
+    case "policy_decision": return `${d.intent.item} ${money(d.total)} → ${label(d.decision.outcome)}. ${d.decision.reasons.join(" ")}`;
+    case "order_placed": return `${d.item} ×${d.qty} · ${money(d.total)} · ${d.merchant_order_id} · ${d.approved_by}`;
+    case "payment_token_minted": return `single-use token · ${d.merchant} · limit ${money(d.limit)}`;
+    case "policy_changed": return Object.entries(d.changes).map(([k,[a,b]])=>`${k}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`).join("; ") || "no change";
+    case "monitor_created": return `${d.name} · ${d.min_discount_pct?`≥${d.min_discount_pct}% off`:""}${d.max_price?` ≤ $${d.max_price}`:""} → ${d.action}`;
+    case "monitor_triggered": return `monitor #${d.monitor_id} hit at ${money(d.price)} (−${d.discount}%)`;
+    case "research": return `model ${d.model} · sent "${d.sent}"`;
+    case "notify": return `${d.title}: ${d.body}`;
+    case "intent_received": return `${d.intent.url?(d.intent.name||d.intent.url):d.intent.sku} ×${d.intent.quantity||1} at ${d.intent.url?d.intent.url.replace(/^https?:\/\/(www\.)?/,"").split("/")[0]:(d.intent.merchant||"demo-store")}${d.intent.price!=null&&d.intent.url?` · agent says ${money(d.intent.price)}`:""}${d.intent.reason?` · "${d.intent.reason}"`:""}`;
+    case "intent_rejected": return `${d.intent.url||d.intent.sku||"request"} refused: ${d.reason}`;
+    case "handoff_created": return `${d.item} ×${d.qty} · ${money(d.expected_total)} · cart handed to you`;
+    case "handoff_paid": return `order #${d.order_id}: you paid ${money(d.paid_total)} vs ${money(d.expected_total)} proposed · ${label(d.outcome)}`;
+    case "handoff_skipped": return `order #${d.order_id} skipped · ${money(d.expected_total)} released`;
+    case "order_status": return `order #${d.order_id}: ${label(d.was)} → ${label(d.status)}`;
+    default: return JSON.stringify(d).slice(0,160);
+  }
+}
+
+function kpi(l, v, s, pct, extra=""){
+  return `<div class="kpi"><div class="l"><span>${l}</span>${extra}</div><div class="v">${v}</div><div class="s">${s}</div>${pct!=null?`<div class="track"><i style="width:${Math.min(100,pct)}%;${pct>85?"background:var(--down)":pct>60?"background:var(--amber)":""}"></i></div>`:""}</div>`;
+}
+
+async function refresh(){
+  try { S = await api("/api/state"); } catch(e){ return; }
+  const p = S.policy, m = S.models;
+  const handoffs = S.orders.filter(o=>o.status==="handed_off");
+  $("#ledger").innerHTML = `<span class="st"><span class="dot ${S.ledger_ok.ok?"up":"down"}"></span>ledger ${S.ledger_ok.ok?"verified":"TAMPERED #"+S.ledger_ok.broken_at}</span>`;
+  $("#modeFoot").textContent = p.pay_merchants.length ? `You pay · Warden pays at ${p.pay_merchants.join(", ")}` : "Agent prepares · you pay";
+
+  // Who does what: each job, who handles it now, and the fallback.
+  const local = m.local.reachable, front = m.frontier.configured && p.frontier_research_allowed;
+  $("#localState").innerHTML = local ? `<span class="up">●</span> ${esc(m.local.model)} running` : `<span style="color:var(--amber)">●</span> no local model · rules in use`;
+  const L = `local · ${m.local.model}`;
+  // [who handles it right now, is the preferred handler running]
+  const handler = r => r.by === "local" ? (local ? [L, true] : [r.fallback, false])
+    : r.by === "rules, then local" ? [local ? `rules, then ${L}` : "rules", true]
+    : r.by.startsWith("frontier") ? (front ? [`frontier · ${m.frontier.model}`, true] : [local ? L : "off", false])
+    : [r.by, true];
+  $("#roles").innerHTML = m.roles.map(r=>{ const [now, ok] = handler(r);
+    return `<div class="role"><span>${esc(r.task)}</span><span class="by"><span class="dot ${ok?"up":"amber"}"></span>${esc(now)}</span>
+      ${r.fallback && ok ? `<span class="fb">if unavailable: ${esc(r.fallback)}</span>` : ""}</div>`; }).join("");
+
+  const pend = S.approvals.filter(a=>a.status==="pending");
+  const approvalCards = pend.map(a=>{ const it=JSON.parse(a.intent), pr=JSON.parse(a.product);
+    const isWeb = /^https?:/.test(pr.url||"");
+    return `<div class="ap"><div><div class="tag">Approve</div><div class="name">${isWeb?`<a href="${esc(pr.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(pr.name)} ↗</a>`:esc(pr.name)} <span class="sub">×${it.quantity}</span>${it.price_verified===false?` <span class="b changed">price unverified</span>`:""}</div>
+      <div class="sub">${esc(pr.merchant)}${it.requested_merchant&&it.requested_merchant!==pr.merchant?` · requested ${esc(it.requested_merchant)}`:""} · ${esc(pr.category)} · ${ago(a.ts)} ago</div>
+      <ul class="why">${(it.reason?[`Agent: ${it.reason}`]:[]).concat(JSON.parse(a.reasons)).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
+      <div><div class="amt">${money(pr.price*it.quantity)}</div><div class="acts"><button class="btn no sm" data-ap="${a.id}:reject">Reject</button><button class="btn ok sm" data-ap="${a.id}:approve">Approve</button></div></div></div>`; });
+  const payCards = handoffs.map(o=>`<div class="ho"><div><div class="tag">Pay</div><div class="name">${esc(o.item)} <span class="sub">×${o.qty}</span></div>
+      <div class="sub">${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?` · requested ${esc(o.requested_merchant)}`:""} · ${esc(o.approved_by.startsWith("policy")?"agent · policy":"approved by "+o.approved_by)} · ${ago(o.ts)} ago</div>
+      <ul class="why" style="margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)">${JSON.parse(o.rationale||"[]").map(r=>`<li>→ ${esc(r)}</li>`).join("")}</ul></div>
+      <div><div class="amt">${money(o.expected_total)}</div><div class="acts">
+        <a class="btn ghost sm" href="${esc(o.cart_url)}" target="_blank" rel="noopener">${/^https?:/.test(o.cart_url||"")?"Open "+esc(o.merchant)+" ↗":"Open cart"}</a>
+        <button class="btn no sm" data-skip="${o.id}">Skip</button>
+        <input id="amt-${o.id}" type="number" step="0.01" value="${Number(o.expected_total).toFixed(2)}" aria-label="Amount charged">
+        <button class="btn ok sm" data-paid="${o.id}">Mark paid</button></div></div></div>`);
+  $("#inCount").textContent = pend.length + handoffs.length;
+  $("#inbox").innerHTML = approvalCards.concat(payCards).join("") ||
+    `<div class="empty">Nothing needs you. Purchases outside your risk level wait here for approval; allowed ones come back ready for you to pay.</div>`;
+
+  const T = S.track_record, o = T.overall, dec = o.as_proposed + o.changed + o.skipped;
+  $("#track").innerHTML = `<div class="tr">
+      <div><div class="l">As proposed</div><div class="v">${o.as_proposed}<small class="sub"> / ${dec}</small></div></div>
+      <div><div class="l">Price diff</div><div class="v">${o.avg_price_dev_pct==null?"—":"±"+o.avg_price_dev_pct+"%"}</div></div>
+      <div><div class="l">Skipped</div><div class="v">${o.skipped}</div></div></div>` +
+    T.suggestions.map(s=>`<div class="sugg"><span>${esc(s.message)}</span><button class="btn ok sm" data-trust="${esc(s.merchant)}">Let Warden pay</button></div>`).join("") +
+    (Object.keys(T.merchants).length ? `<div class="scroll"><table><thead><tr><th>Merchant</th><th class="r">As proposed</th><th class="r">Changed</th><th class="r">Skipped</th></tr></thead><tbody>` +
+      Object.entries(T.merchants).map(([m,t])=>`<tr><td>${esc(m)}${p.pay_merchants.includes(m)?` <span class="b agent">pays</span>`:""}${t.open?`<div class="sub">${t.open} open</div>`:""}</td><td class="r num"><span class="up">${t.as_proposed}</span><span class="sub"> / ${t.proposed - t.open}</span></td><td class="r num">${t.changed}</td><td class="r num">${t.skipped}</td></tr>`).join("") + `</tbody></table></div>`
+      : `<div class="empty">Trust is earned per merchant: after ${T.min_proposals} proposals you paid unchanged, Warden offers to pay there itself.</div>`);
+  $("#modelFoot").innerHTML = `<span class="dot ${m.local.reachable?"up":"amber"}"></span>${m.local.reachable?esc(m.local.model)+" · local":"rules · no local model"}`;
+
+  const active = S.monitors.filter(x=>x.status==="active");
+  const pendAmt = pend.reduce((s,a)=>{const it=JSON.parse(a.intent),pr=JSON.parse(a.product);return s+pr.price*it.quantity},0);
+  $("#kpis").innerHTML =
+    kpi("Spent today", `<span class="num">${money(S.spend.today)}</span>`, `of ${money(p.daily_cap)} daily cap`, S.spend.today/p.daily_cap*100) +
+    kpi("This month", `<span class="num">${money(S.spend.month)}</span>`, `of ${money(p.monthly_cap)} monthly cap`, S.spend.month/p.monthly_cap*100) +
+    kpi("Needs you", `<span class="num" style="${pend.length+handoffs.length?"color:var(--amber)":""}">${pend.length+handoffs.length}</span> <small>${money(pendAmt+handoffs.reduce((s,o)=>s+o.expected_total,0))}</small>`, `${pend.length} to approve · ${handoffs.length} to pay`, null) +
+    kpi("Watching", `<span class="num">${active.length}</span>`, `${S.monitors.filter(x=>x.status==="triggered").length} triggered all-time`, null) +
+    kpi("Risk level", `<span class="num" style="color:${RCOL[p.risk_level]}">${p.risk_level}</span> <small>${esc(p.risk_name)}</small>`, `max ${money(p.max_per_transaction)} / purchase`, null);
+
+  document.querySelectorAll("#dial button").forEach(b=>{ const l=+b.dataset.l, on = l<=p.risk_level;
+    b.classList.toggle("lit",on); b.style.background = on?RCOL[p.risk_level]:""; b.style.opacity = on && l<p.risk_level ? .32 : 1; });
+  $("#lvlNum").textContent = p.risk_level; $("#lvlNum").style.color = RCOL[p.risk_level];
+  $("#lvlName").textContent = p.risk_name; $("#dialDesc").textContent = p.risk_description;
+  if (!limitsDirty){ const f=$("#limits");
+    for (const k of ["max_per_transaction","auto_approve_under","daily_cap","monthly_cap"]) f[k].value=p[k];
+    for (const k of ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"]) f[k].value=p[k].join(", ");
+    f.frontier_research_allowed.checked=p.frontier_research_allowed; f.frontier_redact_pii.checked=p.frontier_redact_pii; }
+
+
+  $("#monCount").textContent = active.length;
+  $("#monitors").innerHTML = S.monitors.length ? `<thead><tr><th>Item</th><th class="r">Last</th><th class="r">Δ vs list</th><th>Trend</th><th>Target</th><th>Then</th><th>Status</th><th></th></tr></thead><tbody>` +
+    S.monitors.map(x=>{ const hist=JSON.parse(x.history||"[]"); const first = hist.length? Math.max(...hist.map(h=>h[1])) : null;
+      const chg = (first && x.last_price!=null) ? (x.last_price/first-1)*100 : 0;
+      return `<tr><td><span class="name">${esc(x.name)}</span><div class="sub mono">${esc(x.merchant)} · ${esc(x.sku.slice(0,28))}</div></td>
+      <td class="r num">${money(x.last_price)}</td>
+      <td class="r chg ${chg<0?"up":chg>0?"down":""}">${chg?(chg>0?"+":"")+chg.toFixed(1)+"%":"0.0%"}</td>
+      <td>${spark(hist)}</td>
+      <td class="mono" style="font-size:12px;white-space:nowrap">${x.min_discount_pct?`≥${x.min_discount_pct}% off`:""}${x.max_price?` ≤${money(x.max_price)}`:""}</td>
+      <td><span class="b ${x.action==="buy"?"agent":""}">${esc(x.action)}</span></td>
+      <td><span class="b ${x.status}">${esc(x.status)}</span></td>
+      <td class="r">${x.status==="active"?`<button class="btn ghost sm" data-unwatch="${x.id}">Stop</button>`:""}</td></tr>`; }).join("") + `</tbody>`
+    : `<tbody><tr><td class="empty">Empty watchlist. Try “buy the propane grill when it's 25% off”.</td></tr></tbody>`;
+
+  $("#ordCount").textContent = S.orders.length;
+  $("#orders").innerHTML = S.orders.length ? `<thead><tr><th>Item</th><th class="r">Amount</th><th>Merchant</th><th>Authorized by</th><th>Fulfillment</th><th>Status</th></tr></thead><tbody>` +
+    S.orders.map(o=>{ const i=STAGES.indexOf(o.status);
+      return `<tr><td><span class="name">${esc(o.item)}</span> <span class="sub">×${o.qty}</span><div class="sub mono">${esc(o.merchant_order_id||(o.status==="paid"?"paid on site":"no order yet"))} · ${ago(o.ts)} ago</div></td>
+      <td class="r num ${o.status==="handed_off"||o.status==="skipped"?"sub":"down"}">${o.status==="handed_off"||o.status==="skipped"?"":"−"}${money(o.total)}${o.outcome&&o.outcome!=="skipped"?`<div><span class="b ${o.outcome}">${label(o.outcome)}</span></div>`:""}</td>
+      <td>${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?`<div class="sub">req. ${esc(o.requested_merchant)}</div>`:""}</td>
+      <td><span class="b ${o.approved_by.startsWith("policy")?"agent":""}">${esc(o.approved_by.startsWith("policy")?"agent · policy":o.approved_by)}</span>${o.expected_total!=null&&o.outcome!=="skipped"&&o.status!=="handed_off"?`<div class="sub">paid by you</div>`:""}</td>
+      <td><div class="steps">${STAGES.map((_,k)=>`<i class="${k<=i?"on":""}"></i>`).join("")}</div></td><td><span class="b ${o.status}">${label(o.status)}</span></td></tr>`; }).join("") + `</tbody>`
+    : `<tbody><tr><td class="empty">No transactions yet.</td></tr></tbody>`;
+
+  const ev = await api("/api/ledger?limit=60");
+  $("#ledgerHead").textContent = S.ledger_ok.head ? `${S.ledger_ok.checked} events · ${S.ledger_ok.head.slice(0,8)}` : "";
+  $("#feed").innerHTML = ev.map(e=>`<div class="ev k-${e.kind}"><div class="rail"><i></i></div><div>
+    <div class="top1"><span class="kind">${esc(e.kind)}</span><span class="act">${esc(e.actor)}</span><span class="t">${ago(e.ts)}</span></div>
+    <div class="d">${esc(evText(e))}</div><div class="h">#${e.id} · ${e.hash.slice(0,16)}</div></div></div>`).join("");
+}
+
+async function loadCatalog(){
+  const items = await api("/api/catalog");
+  $("#catalog").innerHTML = `<thead><tr><th>Item</th><th>Category</th><th class="r">Price</th><th class="r">Δ</th><th class="r">Simulate</th></tr></thead><tbody>` + items.map(p=>`<tr>
+    <td><span class="name">${esc(p.name)}</span><div class="sub mono">${esc(p.sku)}</div></td><td class="sub">${label(p.category)}</td>
+    <td class="r num">${money(p.price)}</td><td class="r chg ${p.discount_pct>0?"up":""}">${p.discount_pct>0?"−"+p.discount_pct+"%":"—"}</td>
+    <td class="r" style="white-space:nowrap"><button class="btn ghost sm" data-sale="${p.sku}:30">−30%</button> <button class="btn ghost sm" data-sale="${p.sku}:0">Reset</button> <button class="btn ghost sm" data-watch="${p.sku}">Watch</button></td></tr>`).join("") + `</tbody>`;
+}
+if (!OWNER) $("#gate").classList.add("show");
+refresh(); loadCatalog();
+setInterval(refresh, 4000); setInterval(loadCatalog, 8000);
+</script>
+</body>
+</html>

@@ -44,14 +44,15 @@ or `buy a $100 gift card` (denied: blocked category).
 
 ## Use a local model
 
-Anything with an OpenAI-style chat API works. Warden checks for it every 30
-seconds and falls back to rules when it's off.
+Install [Ollama](https://ollama.com/download) (Mac: `brew install ollama`)
+and open it. Then, in the dashboard under **Who does what → Manage**, Warden
+shows which models fit your computer, downloads the one you pick, and **Test**
+runs its three model jobs so you can see the model handle them. Until a model
+is running, rules do those jobs.
 
-```bash
-ollama pull llama3.2 && ollama serve          # default, nothing to configure
-# LM Studio, llama.cpp, vLLM:
-export WARDEN_LOCAL_URL=http://localhost:1234/v1 WARDEN_LOCAL_MODEL=qwen2.5-7b-instruct
-```
+On a Mac, run Ollama natively rather than in Docker: Docker can't use the
+Apple GPU. LM Studio, llama.cpp and vLLM work too:
+`export WARDEN_LOCAL_URL=http://localhost:1234/v1`, then pick a model in the dashboard.
 
 Optional frontier research: `export ANTHROPIC_API_KEY=…` (or
 `WARDEN_FRONTIER_PROVIDER=openai` with `OPENAI_API_KEY`).

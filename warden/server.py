@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
+from . import local_models, models
 from .hub import Hub
 from .merchants import REGISTRY
 
@@ -124,6 +125,58 @@ def decide(aid: int, action: str):
 
 
 # ---- policy ------------------------------------------------------------
+# ---- local model: pick, download, test -------------------------------------
+def _model_name(body: dict) -> str:
+    name = str(body.get("name") or "").strip()
+    if not local_models.NAME_RE.match(name):
+        raise HTTPException(400, "invalid model name")
+    return name
+
+
+@app.get("/api/models", dependencies=[Depends(owner)])
+def models_overview():
+    return local_models.overview()
+
+
+@app.post("/api/models/pull", dependencies=[Depends(owner)])
+def models_pull(body: dict = Body(...)):
+    if local_models.engine()["kind"] != "ollama":
+        raise HTTPException(409, "Downloads need Ollama running (ollama.com/download).")
+    name = _model_name(body)
+
+    def done(n):  # start using it if the current model isn't downloaded
+        if not local_models.overview()["active_installed"]:
+            hub.set_policy({"local_model": n}, actor="hub")
+    local_models.start_pull(name, done)
+    hub.log("model_download_started", "user", model=name)
+    return {"status": "downloading", "name": name}
+
+
+@app.post("/api/models/use", dependencies=[Depends(owner)])
+def models_use(body: dict = Body(...)):
+    return {"active": hub.set_policy({"local_model": _model_name(body)}).local_model}
+
+
+@app.post("/api/models/delete", dependencies=[Depends(owner)])
+def models_delete(body: dict = Body(...)):
+    name = _model_name(body)
+    try:
+        local_models.delete(name)
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't delete {name}: {e}")
+    hub.log("model_deleted", "user", model=name)
+    return {"ok": True}
+
+
+@app.post("/api/models/test", dependencies=[Depends(owner)])
+def models_test():
+    chairs = [REGISTRY["demo-store"].get_product(s) for s in ("CHR-200", "CHR-100")]
+    results = local_models.test_jobs(chairs)
+    hub.log("model_tested", "user", model=models.LOCAL_MODEL,
+            passed=sum(r["ok"] for r in results), of=len(results))
+    return {"model": models.LOCAL_MODEL, "results": results}
+
+
 # ---- handoffs (no-payment mode) --------------------------------------------
 @app.post("/api/orders/{oid}/paid", dependencies=[Depends(owner)])
 def order_paid(oid: int, body: dict = Body(...)):

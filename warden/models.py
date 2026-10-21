@@ -38,6 +38,13 @@ def local_label() -> str:
     return f"local · {LOCAL_MODEL}"
 
 
+def set_local_model(name: str) -> None:
+    """Switch the local model (from the dashboard's model picker)."""
+    global LOCAL_MODEL
+    LOCAL_MODEL = name
+    _status_cache["v"] = None
+
+
 def _post(url: str, body: dict, headers: dict, timeout: int = 60) -> dict:
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers}
@@ -58,7 +65,9 @@ def local_chat(system: str, user: str, timeout: int = 60) -> str | None:
             {"Authorization": f"Bearer {os.getenv('WARDEN_LOCAL_KEY', 'local')}"},
             timeout,
         )
-        return r["choices"][0]["message"]["content"]
+        text = r["choices"][0]["message"]["content"] or ""
+        # Reasoning models think out loud first; only the answer after it counts.
+        return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
     except Exception:
         return None
 

@@ -42,6 +42,7 @@ class Policy:
     require_approval_categories: list[str] = field(default_factory=list)
     frontier_research_allowed: bool = True  # frontier models may research, never execute
     frontier_redact_pii: bool = True
+    local_model: str = ""  # picked in the dashboard; empty = WARDEN_LOCAL_MODEL
     # Warden prepares the cart and you pay, except at these stores, where it pays
     # with a single-use token once the agent has earned it (see Hub.track_record).
     pay_merchants: list[str] = field(default_factory=list)

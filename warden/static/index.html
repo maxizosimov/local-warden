@@ -160,6 +160,23 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .role:last-child{border-bottom:0}
 .role .by{display:flex;align-items:center;gap:6px;font:11.5px var(--monof);color:var(--ink2);justify-content:flex-end;text-align:right}
 .role .fb{grid-column:1/-1;font-size:11px;color:var(--faint)}
+/* local model picker */
+.mm{border-bottom:1px solid var(--line)}
+.mmtop{display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap}
+.mmtop select{height:28px;max-width:180px;background:var(--bg2);color:var(--ink);border:1px solid var(--line2);border-radius:7px;font:12px var(--monof);padding:0 6px;outline:0}
+.mmtop .grow{flex:1}
+.mmnote{padding:0 14px 10px;font-size:12px;color:var(--ink2)}
+.mmnote code{font:11.5px var(--monof);background:var(--bg2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.mrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
+.mrow .nm{font:500 12px var(--monof);color:var(--ink)}
+.mrow .nt{font-size:11px;color:var(--mute)}
+.mrow .bar{grid-column:1/-1;height:3px;background:var(--line2);border-radius:3px;overflow:hidden}
+.mrow .bar i{display:block;height:100%;background:var(--agent)}
+.mtest{padding:4px 14px 10px}
+.mtest div{display:grid;grid-template-columns:16px 1fr auto;gap:8px;font-size:12px;padding:3px 0}
+.mtest .s{font:11px var(--monof);color:var(--mute)}
+.mcustom{display:flex;gap:6px;padding:8px 14px 12px;border-top:1px solid var(--line)}
+.mcustom input{flex:1;min-width:0;height:28px;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--ink);font:12px var(--monof);padding:0 8px;outline:0}
 .tag{font:500 10.5px var(--monof);text-transform:uppercase;letter-spacing:.06em;color:var(--amber)}
 .ho .tag{color:var(--agent)}
 
@@ -284,6 +301,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
     <div class="col">
       <div class="panel">
         <div class="ph"><h3>Who does what</h3><span class="right sub" id="localState"></span></div>
+        <div class="mm" id="mm"></div>
         <div id="roles"></div>
       </div>
 
@@ -345,7 +363,7 @@ const setOwner = t => { OWNER = t; try { localStorage.setItem("warden_owner", t)
 const takeHashToken = () => { const t = new URLSearchParams(location.hash.slice(1)).get("owner");
   if (t){ setOwner(t); history.replaceState(null, "", location.pathname); } return !!t; };
 takeHashToken();
-addEventListener("hashchange", () => { if (takeHashToken()){ refresh(); loadCatalog(); } });
+addEventListener("hashchange", () => { if (takeHashToken()){ refresh(); loadCatalog(); loadModels(); } });
 const raw = (path, opts={}) => fetch(path, {...opts, headers:{"Content-Type":"application/json","X-Warden-Owner":OWNER},
   body: opts.body ? JSON.stringify(opts.body) : undefined});
 const api = async (path, opts={}) => {
@@ -359,7 +377,7 @@ const api = async (path, opts={}) => {
 const toast = msg => { const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),3000); };
 const label = s => String(s||"").replace(/_/g," ");
 
-$("#gateForm").onsubmit = e => { e.preventDefault(); setOwner($("#gateTok").value.trim()); refresh(); loadCatalog(); };
+$("#gateForm").onsubmit = e => { e.preventDefault(); setOwner($("#gateTok").value.trim()); refresh(); loadCatalog(); loadModels(); };
 $("#csv").onclick = async () => { const r = await raw("/api/export/orders.csv"); if (!r.ok) return toast("Export failed");
   const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = "warden-orders.csv"; a.click(); };
 
@@ -438,6 +456,64 @@ document.addEventListener("click", async e => {
   } catch(err){ toast(err.message); }
   refresh();
 });
+
+// ---- local model picker: what fits this computer, download, switch, test ----
+let MM = null, mmOpen = false, mmTest = null, mmTesting = false;
+const gb = n => n == null ? "" : `${n.toFixed(1)} GB`;
+async function loadModels(){ try { MM = await api("/api/models"); } catch(e){ return; } renderModels(); }
+function renderModels(){
+  if (!MM) return;
+  const e = MM.engine, active = MM.active, pulls = Object.entries(MM.pulls).filter(([,p])=>!["success","error"].includes(p.status));
+  const opts = MM.installed.map(m=>`<option ${m.name===active||m.name===active+":latest"?"selected":""}>${esc(m.name)}</option>`).join("");
+  let h = `<div class="mmtop"><span class="dot ${e.running&&MM.active_installed?"up":"amber"}"></span>`;
+  h += MM.installed.length ? `<select id="mmSel" aria-label="Local model">${MM.active_installed?"":`<option selected disabled>${esc(active)} (not downloaded)</option>`}${opts}</select>`
+                           : `<span class="mono" style="font-size:12px">${e.running?"no models yet":"no local model"}</span>`;
+  h += `<span class="grow"></span>`;
+  if (e.running && MM.installed.length) h += `<button class="btn ghost sm" data-mtest="1" ${mmTesting?"disabled":""}>${mmTesting?"Testing…":"Test"}</button>`;
+  h += `<button class="btn ghost sm" data-mtoggle="1">${mmOpen?"Done":"Manage"}</button></div>`;
+  if (mmTest) h += `<div class="mtest">` + mmTest.results.map(r=>`<div><span class="${r.ok?"up":"down"}">${r.ok?"✓":"✗"}</span><span>${esc(r.job)} <span class="sub">→ ${esc(r.answer)}</span></span><span class="s">${r.seconds}s</span></div>`).join("") +
+    `<div class="sub" style="display:block">${mmTest.results.every(r=>r.ok)?`${esc(mmTest.model)} handles all of Warden's jobs.`:"✗ means that job falls back to rules with this model."}</div></div>`;
+  if (!mmOpen){ if (pulls.length) h += `<div class="mmnote">Downloading ${pulls.map(([n,p])=>`${esc(n)} ${p.total?Math.round(p.completed/p.total*100)+"%":""}`).join(", ")}…</div>`; $("#mm").innerHTML = h; return; }
+
+  h += `<div class="mmnote">${esc(MM.hardware.label)} · models up to about ${gb(MM.hardware.budget_gb)} fit</div>`;
+  if (e.kind === "none") h += `<div class="mmnote">Ollama isn't running. Install it from <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a> (Mac: <code>brew install ollama</code>), open it, then come back here. Until then, rules do the model's jobs.</div>`;
+  if (e.kind === "openai") h += `<div class="mmnote">Using the model server at <code>${esc(MM.url)}</code>. Download models in that app, then pick one above.</div>`;
+  if (e.kind === "ollama"){
+    h += MM.catalog.map(m=>{ const p = MM.pulls[m.name], busy = p && !["success","error"].includes(p.status);
+      const isActive = m.installed && (m.name===active || active===m.name.replace(/:latest$/,""));
+      const act = busy ? `<span class="sub">${p.total?Math.round(p.completed/p.total*100)+"%":esc(p.status)}</span>`
+        : m.installed ? (isActive ? `<span class="b active">in use</span>` : `<span style="display:flex;gap:6px"><button class="btn ghost sm" data-mdel="${esc(m.name)}">Delete</button><button class="btn ok sm" data-muse="${esc(m.name)}">Use</button></span>`)
+        : `<button class="btn ${m.recommended?"ok":"ghost"} sm" data-mpull="${esc(m.name)}" ${m.misfit?`title="${esc(m.misfit)} on this computer"`:""}>Download</button>`;
+      return `<div class="mrow"><div><div class="nm">${esc(m.name)} ${m.recommended?`<span class="b agent">recommended</span>`:""}${m.misfit?` <span class="b changed">${esc(m.misfit)}</span>`:""}</div>
+        <div class="nt">${gb(m.gb)} · ${esc(m.note)}${p&&p.status==="error"?` · <span class="down">${esc(p.error)}</span>`:""}</div></div><div>${act}</div>
+        ${busy&&p.total?`<div class="bar"><i style="width:${p.completed/p.total*100}%"></i></div>`:""}</div>`; }).join("");
+    h += `<form class="mcustom" id="mmCustom"><input id="mmName" placeholder="any Ollama model, e.g. mistral:7b" autocomplete="off"><button class="btn ghost sm">Download</button></form>`;
+  }
+  $("#mm").innerHTML = h;
+}
+$("#mm").addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-mtoggle],[data-mtest],[data-mpull],[data-muse],[data-mdel]"); if (!b) return;
+  try {
+    if (b.dataset.mtoggle){ mmOpen = !mmOpen; renderModels(); }
+    if (b.dataset.mtest){ mmTesting = true; mmTest = null; renderModels(); mmTest = await api("/api/models/test",{method:"POST"}); mmTesting = false; }
+    if (b.dataset.mpull){ await api("/api/models/pull",{method:"POST",body:{name:b.dataset.mpull}}); toast(`Downloading ${b.dataset.mpull}`); }
+    if (b.dataset.muse){ await api("/api/models/use",{method:"POST",body:{name:b.dataset.muse}}); mmTest = null; toast(`Now using ${b.dataset.muse}`); }
+    if (b.dataset.mdel){ if (!confirm(`Delete ${b.dataset.mdel} from this computer?`)) return; await api("/api/models/delete",{method:"POST",body:{name:b.dataset.mdel}}); toast("Deleted"); }
+  } catch(err){ mmTesting = false; toast(err.message); }
+  loadModels(); refresh();
+});
+$("#mm").addEventListener("change", async ev => {
+  if (ev.target.id !== "mmSel") return;
+  try { await api("/api/models/use",{method:"POST",body:{name:ev.target.value}}); mmTest = null; toast(`Now using ${ev.target.value}`); } catch(err){ toast(err.message); }
+  loadModels(); refresh();
+});
+$("#mm").addEventListener("submit", async ev => {
+  if (ev.target.id !== "mmCustom") return; ev.preventDefault();
+  const name = $("#mmName").value.trim(); if (!name) return;
+  try { await api("/api/models/pull",{method:"POST",body:{name}}); toast(`Downloading ${name}`); } catch(err){ toast(err.message); }
+  loadModels();
+});
+setInterval(() => { if (mmOpen || (MM && Object.values(MM.pulls).some(p=>!["success","error"].includes(p.status)))) loadModels(); }, 1500);
 
 function spark(hist){
   if (!hist || hist.length < 2) return `<svg class="spark" viewBox="0 0 96 26"><line x1="1" y1="13" x2="95" y2="13" stroke="var(--line2)" stroke-dasharray="2 3"/></svg>`;
@@ -585,7 +661,7 @@ async function loadCatalog(){
     <td class="r" style="white-space:nowrap"><button class="btn ghost sm" data-sale="${p.sku}:30">−30%</button> <button class="btn ghost sm" data-sale="${p.sku}:0">Reset</button> <button class="btn ghost sm" data-watch="${p.sku}">Watch</button></td></tr>`).join("") + `</tbody>`;
 }
 if (!OWNER) $("#gate").classList.add("show");
-refresh(); loadCatalog();
+refresh(); loadCatalog(); loadModels();
 setInterval(refresh, 4000); setInterval(loadCatalog, 8000);
 </script>
 </body>

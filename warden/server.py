@@ -7,6 +7,7 @@ import html
 import json
 import threading
 import os
+import re
 import secrets
 from pathlib import Path
 
@@ -202,6 +203,66 @@ def models_test():
     return {"model": models.LOCAL_MODEL, "results": results}
 
 
+# ---- accounts: store logins and payment methods (masked only) ---------------
+# Warden keeps who and which, never the secret: a label, a login name, the last 4
+# digits. Passwords and full card or account numbers are never sent here, so a
+# leaked data folder (or an agent) can't use them. Real payment goes through
+# single-use virtual cards (see vault.py), not these.
+WALLET = DATA / "wallet.json"
+WALLET_KINDS = {"login": ("store", "login"), "card": ("label", "last4"), "bank": ("label", "last4")}
+DEMO_WALLET = [
+    {"kind": "login", "store": "demo-store", "login": "demo.shopper@example.com"},
+    {"kind": "card", "label": "Demo Visa", "last4": "4242"},
+    {"kind": "bank", "label": "Demo Checking", "last4": "6789"},
+]
+
+
+def _wallet() -> list[dict]:
+    if not WALLET.exists():
+        _save_wallet([{**w, "id": secrets.token_hex(4), "demo": True} for w in DEMO_WALLET])
+    return json.loads(WALLET.read_text())
+
+
+def _save_wallet(items: list[dict]) -> None:
+    WALLET.write_text(json.dumps(items, indent=1))
+    WALLET.chmod(0o600)
+
+
+@app.get("/api/wallet", dependencies=[Depends(owner)])
+def wallet():
+    return _wallet()
+
+
+@app.post("/api/wallet", dependencies=[Depends(owner)])
+def wallet_add(body: dict = Body(...)):
+    kind = body.get("kind")
+    if kind not in WALLET_KINDS:
+        raise HTTPException(400, "kind must be login, card or bank")
+    item = {"kind": kind, "id": secrets.token_hex(4)}
+    for k in WALLET_KINDS[kind]:
+        v = str(body.get(k) or "").strip()
+        if not v or len(v) > 80:
+            raise HTTPException(400, f"{k} required")
+        item[k] = v
+    if "last4" in item and not re.fullmatch(r"\d{4}", item["last4"]):
+        raise HTTPException(400, "last4 must be the last 4 digits only")
+    items = _wallet() + [item]
+    _save_wallet(items)
+    hub.log("account_added", "user", type=kind, name=item.get("store") or item.get("label"))
+    return item
+
+
+@app.delete("/api/wallet/{wid}", dependencies=[Depends(owner)])
+def wallet_remove(wid: str):
+    items = _wallet()
+    gone = [w for w in items if w["id"] == wid]
+    if not gone:
+        raise HTTPException(404)
+    _save_wallet([w for w in items if w["id"] != wid])
+    hub.log("account_removed", "user", type=gone[0]["kind"], name=gone[0].get("store") or gone[0].get("label"))
+    return {"ok": True}
+
+
 # ---- handoffs (no-payment mode) --------------------------------------------
 @app.post("/api/orders/{oid}/paid", dependencies=[Depends(owner)])
 def order_paid(oid: int, body: dict = Body(...)):
@@ -332,19 +393,57 @@ def demo_reset():
 
 @app.get("/demo/cart/{sku}", response_class=HTMLResponse)
 def demo_cart(sku: str, qty: int = 1):
-    """Stand-in for a real store's checkout page in handoff mode."""
+    """Stand-in for a real store's checkout in handoff mode. The card on it is fake and
+    never leaves this page: paying only tells Warden the amount, like "Mark paid"."""
     p = REGISTRY["demo-store"].get_product(sku)
     if not p:
         raise HTTPException(404)
-    name, total = html.escape(p.name), f"${p.price * qty:,.2f}"
+    qty = max(1, min(qty, 99))
+    name, total = html.escape(p.name), round(p.price * qty, 2)
     return f"""<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Demo checkout</title><style>body{{margin:0;background:#09090b;color:#ececef;font:14px/1.5 system-ui,sans-serif;
 display:grid;place-items:center;min-height:100vh;padding:16px;box-sizing:border-box}}.c{{max-width:420px;width:100%;
-border:1px solid #1f1f25;border-radius:12px;background:#111114;padding:24px}}.m{{color:#77777f;font-size:12.5px}}
-.t{{font:500 28px ui-monospace,monospace;margin:12px 0}}</style>
-<div class="c"><div class="m">demo-store · checkout</div><h2 style="margin:6px 0 0;font-weight:500">{name} ×{qty}</h2>
-<div class="t">{total}</div><p class="m">This is where a real store would ask for your card. Warden prepared the cart
-and never saw a payment method. Close this tab and click <b>Mark paid</b> in Warden to record what you were charged.</p></div>"""
+border:1px solid #1f1f25;border-radius:12px;background:#111114;padding:24px;box-sizing:border-box}}
+.m{{color:#77777f;font-size:12.5px}}.t{{font:500 28px ui-monospace,monospace;margin:8px 0 16px}}
+.sim{{background:#2a2108;color:#f5c451;border-radius:6px;padding:6px 10px;font-size:12.5px;margin-bottom:14px}}
+label{{display:block;color:#77777f;font-size:12px;margin:10px 0 4px}}input{{width:100%;box-sizing:border-box;
+background:#09090b;border:1px solid #2a2a31;border-radius:8px;color:#ececef;padding:9px 10px;font:14px ui-monospace,monospace}}
+.row{{display:flex;gap:10px}}.row>div{{flex:1}}button{{width:100%;margin-top:18px;padding:11px;border:0;border-radius:8px;
+background:#ececef;color:#09090b;font:600 14px system-ui;cursor:pointer}}button:disabled{{opacity:.5;cursor:default}}
+#out{{margin-top:14px}}a{{color:#8ab4ff}}</style>
+<div class="c"><div class="sim">Simulated store. The card below is fake and nothing is charged.</div>
+<div class="m">demo-store · checkout</div><h2 style="margin:6px 0 0;font-weight:500">{name} ×{qty}</h2>
+<div class="t">${total:,.2f}</div>
+<form id="f"><label>Name on card</label><input value="Demo Shopper" autocomplete="off">
+<label>Card number</label><input value="4242 4242 4242 4242" autocomplete="off">
+<div class="row"><div><label>Expires</label><input value="12/30" autocomplete="off"></div>
+<div><label>CVC</label><input value="123" autocomplete="off"></div></div>
+<label>Ship to</label><input value="1 Demo Way, Springfield" autocomplete="off">
+<button id="pay">Pay ${total:,.2f}</button></form>
+<p class="m">Your agent and Warden never see this page's card details. Warden only records what you paid.</p>
+<div id="out" class="m"></div></div>
+<script>
+const SKU = {json.dumps(sku)}, TOTAL = {total}, out = document.getElementById("out");
+let owner = ""; try {{ owner = localStorage.getItem("warden_owner") || ""; }} catch (e) {{}}
+const api = (path, body) => fetch(path, {{method: body ? "POST" : "GET",
+  headers: {{"X-Warden-Owner": owner, "Content-Type": "application/json"}},
+  body: body ? JSON.stringify(body) : undefined}}).then(r => r.ok ? r.json() : Promise.reject(r.status));
+document.getElementById("f").onsubmit = async (e) => {{
+  e.preventDefault(); const btn = document.getElementById("pay"); btn.disabled = true; btn.textContent = "Paying…";
+  try {{
+    const s = await api("/api/state");
+    const o = s.orders.find((o) => o.status === "handed_off" && o.sku === SKU);
+    if (!o) throw "This cart isn't waiting for payment in Warden.";
+    const r = await api(`/api/orders/${{o.id}}/paid`, {{amount: TOTAL}});
+    if (r.status === "error") throw r.message;
+    btn.textContent = "Paid (simulated)";
+    out.innerHTML = `Order <b>${{r.merchant_order_id}}</b> placed. Warden recorded it: ${{r.message}} <a href="/">Back to Warden</a>`;
+  }} catch (err) {{
+    btn.disabled = false; btn.textContent = "Pay ${total:,.2f}";
+    out.textContent = typeof err === "string" ? err : "Open Warden first so this page can tell it you paid.";
+  }}
+}};
+</script>"""
 
 
 def main():

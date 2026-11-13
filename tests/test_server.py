@@ -72,3 +72,37 @@ def test_hosted_hostname_allowed(tmp_path, monkeypatch):
     assert c.get("/").status_code == 200
     assert c.get("/api/state").status_code == 401  # still needs the owner token
     assert c.get("/", headers={"Host": "evil.example"}).status_code == 403
+
+
+def test_demo_checkout_is_simulated_and_records_payment(srv):
+    server, c = srv
+    r = c.post("/api/intents", json={"merchant": "demo-store", "sku": "CHR-200"}, headers=H(server.AGENT_TOKEN))
+    approved = c.post(f"/api/approvals/{r.json()['approval_id']}/approve", headers=H(server.OWNER_TOKEN)).json()
+    page = c.get(approved["cart_url"])
+    assert page.status_code == 200 and "Simulated store" in page.text and "4242 4242 4242 4242" in page.text
+    assert "nothing is charged" in page.text and "<script>" in page.text
+    # What the page's Pay button sends: the amount only, never the card.
+    paid = c.post(f"/api/orders/{approved['order_id']}/paid", json={"amount": approved["expected_total"]},
+                  headers=H(server.OWNER_TOKEN)).json()
+    assert paid["outcome"] == "as_proposed" and paid["merchant_order_id"].startswith("DEMO-")
+
+
+def test_demo_checkout_escapes_and_bounds(srv):
+    _, c = srv
+    assert c.get("/demo/cart/NOPE").status_code == 404
+    assert "×99" in c.get("/demo/cart/PEN-510?qty=5000").text
+
+
+def test_wallet_keeps_masked_details_only(srv):
+    server, c = srv
+    O = {"X-Warden-Owner": server.OWNER_TOKEN}
+    assert c.get("/api/wallet").status_code == 401
+    assert c.get("/api/wallet", headers=H(server.AGENT_TOKEN)).status_code == 401  # agents never see it
+    assert {w["kind"] for w in c.get("/api/wallet", headers=O).json()} == {"login", "card", "bank"}
+    r = c.post("/api/wallet", json={"kind": "login", "store": "staples", "login": "me@example.com",
+                                    "password": "hunter2"}, headers=O).json()
+    assert "password" not in r and "hunter2" not in (server.DATA / "wallet.json").read_text()
+    assert c.post("/api/wallet", json={"kind": "card", "label": "Visa", "last4": "4242424242424242"},
+                  headers=O).status_code == 400
+    c.delete(f"/api/wallet/{r['id']}", headers=O)
+    assert all(w["id"] != r["id"] for w in c.get("/api/wallet", headers=O).json())

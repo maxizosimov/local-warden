@@ -196,6 +196,37 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .sugg .btn{flex:none;white-space:nowrap}
 .sugg{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--up-bg);font-size:12px;color:var(--ink2)}
 
+/* watch form */
+.wf{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:14px}
+.wf input,.wf select{height:34px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--ink);font:13px Inter,sans-serif;padding:0 10px;outline:0}
+.wf input:focus,.wf select:focus{border-color:rgba(139,124,246,.55)}
+.wf .item{flex:1 1 220px;min-width:0}.wf .val{width:90px;font-family:var(--monof)}
+.wf .w{color:var(--mute);font-size:12.5px}
+.wmsg{padding:0 14px 12px;font-size:12.5px;color:var(--ink2);margin-top:-2px}.wmsg:empty{display:none}
+
+/* controls */
+.settings{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.seg{display:grid;grid-template-columns:240px minmax(0,1fr);gap:28px;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.seg h2{margin:0;font-size:14px;font-weight:600;letter-spacing:-.01em}
+.seg .hint{margin:6px 0 0;font-size:12.5px;color:var(--mute);line-height:1.55}
+.seg .body{min-width:0;display:flex;flex-direction:column;gap:14px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fields label,.stack label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--mute)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.money-in{position:relative}.money-in::before{content:"$";position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--faint);font:13px var(--monof)}
+.seg input[type=number],.seg input[type=text]{width:100%;height:38px;padding:0 12px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--ink);font:13px var(--monof);outline:0}
+.money-in input{padding-left:24px!important}
+.seg input:focus{border-color:rgba(139,124,246,.55)}
+.savebar{display:flex;align-items:center;justify-content:flex-end;gap:12px;font-size:12.5px;color:var(--mute)}
+.savebar .dirty{color:var(--amber)}
+.seg .rolebox{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg2)}
+.seg .mm{border-bottom:1px solid var(--line)}
+@media (max-width:760px){.seg{grid-template-columns:1fr;gap:16px;padding:18px}.fields{grid-template-columns:1fr}}
+
+.note{font-size:12.5px;color:var(--amber);background:var(--amber-bg);border-radius:8px;padding:9px 12px}
+.lbl{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
+.seg .wf{padding:0}.addf input{flex:1 1 140px;min-width:0}
+.rolebox .mini{background:transparent}
 /* token gate */
 .gate{position:fixed;inset:0;z-index:20;display:none;place-items:center;background:rgba(9,9,11,.92);padding:16px}
 .gate.show{display:grid}
@@ -203,7 +234,6 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .gate input{width:100%;height:34px;margin:12px 0;padding:0 10px;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--ink);font:12.5px var(--monof);outline:0}
 
 /* risk dial */
-.dialwrap{padding:16px 14px 6px}
 .rl{display:flex;align-items:baseline;justify-content:space-between}
 .rl .lvl{font:500 28px var(--monof);letter-spacing:-.03em}
 .rl .nm{font-size:13px;font-weight:500}
@@ -213,17 +243,6 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .dial button.lit{color:#0b0b0d;border-color:transparent}
 .dlabels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
 .ddesc{font-size:12.5px;color:var(--ink2);margin:12px 0 4px;min-height:2.8em}
-.limits{border-top:1px solid var(--line)}
-.limits summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:11px 14px;font-size:12.5px;color:var(--ink2)}
-.limits summary::-webkit-details-marker{display:none}
-.limits summary::after{content:"+";font:14px var(--monof);color:var(--mute)}
-.limits[open] summary::after{content:"−"}
-.lf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;padding:0 14px 14px}
-.lf label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--mute)}
-.lf .w{grid-column:1/-1}
-.lf input[type=number],.lf input[type=text],.lf input:not([type]){height:32px;padding:0 10px;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--ink);font:12.5px var(--monof);outline:0}
-.lf input{min-width:0;width:100%}
-.lf input:focus{border-color:rgba(139,124,246,.55)}
 .tog{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;color:var(--ink2)!important;font-size:12px!important;cursor:pointer}
 .tog input{appearance:none;width:28px;height:16px;border-radius:9px;background:var(--line2);position:relative;cursor:pointer;flex:none;transition:.15s;margin:0}
 .tog input::after{content:"";position:absolute;width:12px;height:12px;left:2px;top:2px;border-radius:50%;background:var(--ink2);transition:.15s}
@@ -260,6 +279,8 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
     <a href="#watch" data-v="watch">Watchlist</a>
     <a href="#orders" data-v="orders">Orders</a>
     <a href="#controls" data-v="controls">Controls</a>
+    <a href="#accounts" data-v="accounts">Accounts</a>
+    <a href="#settings" data-v="settings">Settings</a>
     <a href="#activity" data-v="activity">Activity</a>
   </nav>
   <div class="status" id="ledger"></div>
@@ -311,7 +332,16 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
   <section class="view" data-view="watch"><div class="single">
     <div class="panel">
       <div class="ph"><h3>Watchlist</h3><span class="right sub">waits for a price, then buys or tells you · still checked by policy</span></div>
-      <div class="scroll"><table id="monitors"></table></div>
+      <form class="wf" id="watchForm">
+        <input class="item" id="wItem" placeholder="Item to watch, e.g. standing desk" autocomplete="off" required>
+        <select id="wKind" aria-label="Trigger"><option value="pct">at % off</option><option value="under">under $</option></select>
+        <input class="val" id="wVal" type="number" min="1" step="any" value="20" aria-label="Trigger value" required>
+        <span class="w">then</span>
+        <select id="wAct" aria-label="Then"><option value="buy">buy it</option><option value="notify">tell me</option></select>
+        <button class="btn">Watch</button>
+      </form>
+      <div class="wmsg" id="wMsg"></div>
+      <div class="scroll" style="border-top:1px solid var(--line)"><table id="monitors"></table></div>
     </div>
     <div class="panel">
       <div class="ph"><h3>Market simulator</h3><span class="b agent">demo-store</span><span class="right sub">put items on sale to fire watches</span></div>
@@ -331,40 +361,93 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
     </div>
   </div></section>
 
-  <section class="view" data-view="controls">
-    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
-      <div class="panel">
-        <div class="ph"><h3>Risk dial</h3><span class="right sub">autonomy inside hard limits</span></div>
-        <div class="dialwrap">
-          <div class="rl"><span class="lvl num" id="lvlNum">1</span><span class="nm" id="lvlName"></span></div>
-          <div class="dial" id="dial"></div>
-          <div class="dlabels"><span>Observe</span><span>Autonomous</span></div>
-          <div class="ddesc" id="dialDesc"></div>
-        </div>
-        <details class="limits" open>
-          <summary>Hard limits</summary>
-          <form class="lf" id="limits">
-            <label>Max per purchase<input name="max_per_transaction" type="number" step="1"></label>
-            <label>Auto-approve under<input name="auto_approve_under" type="number" step="1"></label>
-            <label>Daily cap<input name="daily_cap" type="number" step="1"></label>
-            <label>Monthly cap<input name="monthly_cap" type="number" step="1"></label>
-            <label class="w">Approved merchants<input name="allowed_merchants" type="text"></label>
-            <label class="w">Blocked merchants<input name="blocked_merchants" type="text"></label>
-            <label class="w">Blocked categories<input name="blocked_categories" type="text"></label>
-            <label class="w">Warden pays at (trusted merchants)<input name="pay_merchants" type="text"></label>
-            <label class="w tog"><input type="checkbox" name="frontier_research_allowed"> Frontier model may research (never pays)</label>
-            <label class="w tog"><input type="checkbox" name="frontier_redact_pii"> Redact personal info before it leaves device</label>
-            <button class="btn w" style="height:34px">Save limits</button>
-          </form>
-        </details>
-      </div>
-      <div class="panel" style="align-self:start">
-        <div class="ph"><h3>Who does what</h3><span class="right sub" id="localState"></span></div>
-        <div class="mm" id="mm"></div>
-        <div id="roles"></div>
+  <section class="view" data-view="controls"><div class="settings">
+    <div class="seg">
+      <div><h2>Risk dial</h2><p class="hint">How much Warden may do without asking you. The limits below apply at every level.</p></div>
+      <div class="body">
+        <div class="rl"><span class="lvl num" id="lvlNum">1</span><span class="nm" id="lvlName"></span></div>
+        <div class="dial" id="dial" style="margin:0"></div>
+        <div class="dlabels"><span>Observe</span><span>Autonomous</span></div>
+        <div class="ddesc" id="dialDesc" style="margin:0;min-height:0"></div>
       </div>
     </div>
-  </section>
+    <form class="pform stack" style="gap:16px">
+      <div class="seg">
+        <div><h2>Spending limits</h2><p class="hint">Never exceeded, whatever the agent or risk level says.</p></div>
+        <div class="body"><div class="fields">
+          <label>Max per purchase<span class="money-in"><input name="max_per_transaction" type="number" step="1"></span></label>
+          <label>Auto-approve under<span class="money-in"><input name="auto_approve_under" type="number" step="1"></span></label>
+          <label>Daily cap<span class="money-in"><input name="daily_cap" type="number" step="1"></span></label>
+          <label>Monthly cap<span class="money-in"><input name="monthly_cap" type="number" step="1"></span></label>
+        </div></div>
+      </div>
+      <div class="seg">
+        <div><h2>Stores and categories</h2><p class="hint">Where the agent may shop and what it may never buy. Separate with commas.</p></div>
+        <div class="body stack">
+          <label>Approved stores<input name="allowed_merchants" type="text"></label>
+          <label>Blocked stores<input name="blocked_merchants" type="text"></label>
+          <label>Blocked categories<input name="blocked_categories" type="text"></label>
+          <label>Warden pays at (trusted stores)<input name="pay_merchants" type="text"></label>
+        </div>
+      </div>
+      <div class="savebar"><span class="saveState">All changes saved</span><button class="btn" style="height:36px;padding:0 18px">Save changes</button></div>
+    </form>
+  </div></section>
+
+  <section class="view" data-view="accounts"><div class="settings">
+    <div class="note">Demo: Warden keeps only names, logins and the last 4 digits. Passwords and full numbers never leave this page.</div>
+    <div class="seg">
+      <div><h2>Agent access</h2><p class="hint">Agents connect with the agent token (<span class="mono">data/agent_token</span>, or <span class="mono">./mcp.sh</span>). They can propose purchases and set watches. They can't approve, pay, change your rules or see this page.</p></div>
+      <div class="body">
+        <div class="lbl">Requests from agents</div><div class="rolebox" id="agentReqs"></div>
+        <div class="lbl">Went through without asking you</div><div class="rolebox" id="autoReqs"></div>
+      </div>
+    </div>
+    <div class="seg">
+      <div><h2>Store logins</h2><p class="hint">Accounts Warden can check out with. Agents never get these.</p></div>
+      <div class="body">
+        <div class="rolebox" id="logins"></div>
+        <form class="wf addf" data-kind="login">
+          <input name="store" placeholder="Store, e.g. staples" required autocomplete="off">
+          <input name="login" placeholder="Email or username" required autocomplete="off">
+          <input name="secret" type="password" placeholder="Password (not stored)" autocomplete="new-password">
+          <button class="btn">Add</button>
+        </form>
+      </div>
+    </div>
+    <div class="seg">
+      <div><h2>Cards and bank</h2><p class="hint">Agents never see these. When Warden pays, it uses a single-use virtual card locked to one store and amount.</p></div>
+      <div class="body">
+        <div class="rolebox" id="payments"></div>
+        <form class="wf addf" data-kind="card">
+          <select name="kind" aria-label="Type"><option value="card">Card</option><option value="bank">Bank account</option></select>
+          <input name="label" placeholder="Name, e.g. Chase Visa" required autocomplete="off">
+          <input name="number" placeholder="Card or account number" required autocomplete="off" inputmode="numeric">
+          <button class="btn">Add</button>
+        </form>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="view" data-view="settings"><div class="settings">
+    <div class="seg">
+      <div><h2>Models</h2><p class="hint">Small jobs run on your local model, with rules as backup. Deciding and paying never use a model.</p></div>
+      <div class="body">
+        <div class="sub" id="localState"></div>
+        <div class="rolebox"><div class="mm" id="mm"></div><div id="roles"></div></div>
+      </div>
+    </div>
+    <form class="pform stack" style="gap:16px">
+      <div class="seg">
+        <div><h2>Research and privacy</h2><p class="hint">Open questions can go to a frontier model as text only. It gets no tools and can never buy.</p></div>
+        <div class="body stack">
+          <label class="tog"><input type="checkbox" name="frontier_research_allowed"> Frontier model may research</label>
+          <label class="tog"><input type="checkbox" name="frontier_redact_pii"> Remove address, card and email before anything leaves this computer</label>
+        </div>
+      </div>
+      <div class="savebar"><span class="saveState">All changes saved</span><button class="btn" style="height:36px;padding:0 18px">Save changes</button></div>
+    </form>
+  </div></section>
 
   <section class="view" data-view="activity"><div class="single">
     <div class="panel">
@@ -393,7 +476,7 @@ const setOwner = t => { OWNER = t; try { localStorage.setItem("warden_owner", t)
 const takeHashToken = () => { const t = new URLSearchParams(location.hash.slice(1)).get("owner");
   if (t){ setOwner(t); history.replaceState(null, "", location.pathname); } return !!t; };
 takeHashToken();
-const VIEWS = ["home","watch","orders","controls","activity"];
+const VIEWS = ["home","watch","orders","controls","accounts","settings","activity"];
 function route(){
   const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "home";
   document.querySelectorAll(".view").forEach(el => el.classList.toggle("on", el.dataset.view === v));
@@ -432,14 +515,34 @@ $("#dial").innerHTML = RISK.map((r,i)=>`<button type="button" data-l="${i}" titl
 $("#dial").onclick = async e => { const b=e.target.closest("button"); if(!b) return;
   await api("/api/policy",{method:"PUT",body:{risk_level:+b.dataset.l}}); toast(`Risk level ${b.dataset.l} · ${RISK[b.dataset.l][0]}`); refresh(); };
 
-let S = null, limitsDirty = false;
-$("#limits").oninput = () => limitsDirty = true;
-$("#limits").onsubmit = async e => {
-  e.preventDefault(); const f = new FormData(e.target), body = {};
-  for (const k of ["max_per_transaction","auto_approve_under","daily_cap","monthly_cap"]) body[k] = +f.get(k);
-  for (const k of ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"]) body[k] = (f.get(k)||"").split(",").map(s=>s.trim()).filter(Boolean);
-  body.frontier_research_allowed = !!f.get("frontier_research_allowed"); body.frontier_redact_pii = !!f.get("frontier_redact_pii");
-  await api("/api/policy",{method:"PUT",body}); limitsDirty=false; toast("Limits saved · change written to ledger"); refresh();
+let S = null;
+// Policy forms (Controls, Settings): each saves only the fields it holds.
+const NUMS = ["max_per_transaction","auto_approve_under","daily_cap","monthly_cap"],
+      LISTS = ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"];
+const setSave = (f, txt, dirty) => { const el = f.querySelector(".saveState"); el.textContent = txt; el.className = "saveState" + (dirty ? " dirty" : ""); };
+document.querySelectorAll(".pform").forEach(f => {
+  f.oninput = () => { f.dataset.dirty = "1"; setSave(f, "Unsaved changes", true); };
+  f.onsubmit = async e => {
+    e.preventDefault(); const body = {};
+    for (const el of f.elements){ if (!el.name) continue;
+      body[el.name] = NUMS.includes(el.name) ? +el.value : LISTS.includes(el.name) ? el.value.split(",").map(s=>s.trim()).filter(Boolean) : el.checked; }
+    try { await api("/api/policy",{method:"PUT",body}); delete f.dataset.dirty; setSave(f, "Saved · written to the ledger"); toast("Saved · change written to ledger"); }
+    catch(err){ toast(err.message); }
+    refresh();
+  };
+});
+
+// Watch form: phrased as a request so it goes through the same search, pick and policy path.
+$("#watchForm").onsubmit = async e => {
+  e.preventDefault(); const item = $("#wItem").value.trim(), v = +$("#wVal").value; if (!item || !(v > 0)) return;
+  const cond = $("#wKind").value === "pct" ? `when it's ${v}% off` : `if under $${v}`;
+  const text = $("#wAct").value === "buy" ? `buy ${item} ${cond}` : `tell me ${cond.startsWith("when") ? `when ${item} is ${v}% off` : `if ${item} is under $${v}`}`;
+  $("#wMsg").textContent = "Finding it…";
+  try { const r = await api("/api/tasks",{method:"POST",body:{text}});
+    $("#wMsg").textContent = r.status === "monitoring" ? r.message : (r.message || label(r.status));
+    if (r.status === "monitoring") $("#wItem").value = ""; }
+  catch(err){ $("#wMsg").textContent = err.message; }
+  refresh();
 };
 
 $("#cmdForm").onsubmit = async e => {
@@ -587,6 +690,8 @@ function evText(e){
     case "handoff_created": return `${d.item} ×${d.qty} · ${money(d.expected_total)} · cart handed to you`;
     case "handoff_paid": return `order #${d.order_id}: you paid ${money(d.paid_total)} vs ${money(d.expected_total)} proposed · ${label(d.outcome)}`;
     case "handoff_skipped": return `order #${d.order_id} skipped · ${money(d.expected_total)} released`;
+    case "account_added": return `${d.type} added · ${d.name} (masked)`;
+    case "account_removed": return `${d.type} removed · ${d.name}`;
     case "order_status": return `order #${d.order_id}: ${label(d.was)} → ${label(d.status)}`;
     default: return JSON.stringify(d).slice(0,160);
   }
@@ -659,10 +764,9 @@ async function refresh(){
     b.classList.toggle("lit",on); b.style.background = on?RCOL[p.risk_level]:""; b.style.opacity = on && l<p.risk_level ? .32 : 1; });
   $("#lvlNum").textContent = p.risk_level; $("#lvlNum").style.color = RCOL[p.risk_level];
   $("#lvlName").textContent = p.risk_name; $("#dialDesc").textContent = p.risk_description;
-  if (!limitsDirty){ const f=$("#limits");
-    for (const k of ["max_per_transaction","auto_approve_under","daily_cap","monthly_cap"]) f[k].value=p[k];
-    for (const k of ["allowed_merchants","blocked_merchants","blocked_categories","pay_merchants"]) f[k].value=p[k].join(", ");
-    f.frontier_research_allowed.checked=p.frontier_research_allowed; f.frontier_redact_pii.checked=p.frontier_redact_pii; }
+  document.querySelectorAll(".pform").forEach(f => { if (f.dataset.dirty) return;
+    for (const el of f.elements){ if (!el.name || !(el.name in p)) continue;
+      if (el.type === "checkbox") el.checked = p[el.name]; else el.value = LISTS.includes(el.name) ? p[el.name].join(", ") : p[el.name]; } });
 
 
   $("#monCount").textContent = active.length;
@@ -698,21 +802,51 @@ async function refresh(){
     : `<tbody><tr><td class="empty">No transactions yet.</td></tr></tbody>`;
 
   const ev = await api("/api/ledger?limit=60");
+  const reqs = ev.filter(e=>e.kind==="intent_received").slice(0,5);
+  $("#agentReqs").innerHTML = reqs.map(e=>`<div class="mini"><div><span class="name">${esc(e.data.intent.name||CAT[e.data.intent.sku]||e.data.intent.sku||e.data.intent.url||"request")}</span>
+      <div class="sub">${esc(e.actor)}${e.data.intent.reason?` · "${esc(e.data.intent.reason)}"`:""}</div></div><div class="r sub">${ago(e.ts)} ago</div></div>`).join("") ||
+    `<div class="empty">No agent requests yet. Connect one with <span class="mono">./mcp.sh</span>.</div>`;
+  const auto = S.orders.filter(o=>o.approved_by.startsWith("policy")).slice(0,5).map(o=>`<div class="mini"><div><span class="name">${esc(o.item)}</span>
+      <div class="sub">${esc(o.merchant)} · allowed by your risk level · ${ago(o.ts)} ago</div></div><div class="r num">${money(o.total)}</div></div>`)
+    .concat(S.monitors.filter(m=>m.status==="active"&&m.action==="buy").map(m=>`<div class="mini"><div><span class="name">${esc(m.name)}</span>
+      <div class="sub">watch that buys on its own · still checked by policy</div></div><div class="r"><a href="#watch" class="sub">manage</a></div></div>`));
+  $("#autoReqs").innerHTML = auto.join("") || `<div class="empty">Nothing yet. At risk level 1 every purchase asks you first.</div>`;
   $("#ledgerHead").textContent = S.ledger_ok.head ? `${S.ledger_ok.checked} events · ${S.ledger_ok.head.slice(0,8)}` : "";
   $("#feed").innerHTML = ev.map(e=>`<div class="ev k-${e.kind}"><div class="rail"><i></i></div><div>
     <div class="top1"><span class="kind">${esc(e.kind)}</span><span class="act">${esc(e.actor)}</span><span class="t">${ago(e.ts)}</span></div>
     <div class="d">${esc(evText(e))}</div><div class="h">#${e.id} · ${e.hash.slice(0,16)}</div></div></div>`).join("");
 }
 
+const CAT = {};
 async function loadCatalog(){
-  const items = await api("/api/catalog");
+  const items = await api("/api/catalog"); items.forEach(p => CAT[p.sku] = p.name);
   $("#catalog").innerHTML = `<thead><tr><th>Item</th><th>Category</th><th class="r">Price</th><th class="r">Δ</th><th class="r">Simulate</th></tr></thead><tbody>` + items.map(p=>`<tr>
     <td><span class="name">${esc(p.name)}</span><div class="sub mono">${esc(p.sku)}</div></td><td class="sub">${label(p.category)}</td>
     <td class="r num">${money(p.price)}</td><td class="r chg ${p.discount_pct>0?"up":""}">${p.discount_pct>0?"−"+p.discount_pct+"%":"—"}</td>
     <td class="r" style="white-space:nowrap"><button class="btn ghost sm" data-sale="${p.sku}:30">−30%</button> <button class="btn ghost sm" data-sale="${p.sku}:0">Reset</button> <button class="btn ghost sm" data-watch="${p.sku}">Watch</button></td></tr>`).join("") + `</tbody>`;
 }
+async function loadWallet(){
+  let W; try { W = await api("/api/wallet"); } catch(e){ return; }
+  const row = (w, main, sub) => `<div class="mini"><div><span class="name">${main}</span>${w.demo?` <span class="b agent">demo</span>`:""}<div class="sub">${sub}</div></div>
+      <div class="r"><button class="btn no sm" type="button" data-wdel="${esc(w.id)}">Remove</button></div></div>`;
+  $("#logins").innerHTML = W.filter(w=>w.kind==="login").map(w=>row(w, esc(w.store), `${esc(w.login)} · password not stored`)).join("") || `<div class="empty">No store logins.</div>`;
+  $("#payments").innerHTML = W.filter(w=>w.kind!=="login").map(w=>row(w, `${esc(w.label)} <span class="mono sub">•••• ${esc(w.last4)}</span>`, w.kind==="bank"?"Bank account":"Card")).join("") || `<div class="empty">No cards or bank accounts.</div>`;
+}
+document.querySelectorAll(".addf").forEach(f => f.onsubmit = async e => {
+  e.preventDefault(); const v = n => (f.elements[n] ? f.elements[n].value.trim() : "");
+  // Only the masked parts are sent: never the password, never the full number.
+  const digits = v("number").replace(/\D/g, "");
+  const body = f.dataset.kind === "login" ? {kind:"login", store:v("store"), login:v("login")}
+    : {kind:v("kind"), label:v("label"), last4:digits.slice(-4)};
+  if (body.last4 !== undefined && digits.length < 4) return toast("Enter the number; only its last 4 digits are kept");
+  try { await api("/api/wallet",{method:"POST",body}); f.reset(); toast("Added · only the masked details were kept"); } catch(err){ toast(err.message); }
+  loadWallet();
+});
+document.addEventListener("click", async e => { const b = e.target.closest("[data-wdel]"); if (!b) return;
+  try { await api(`/api/wallet/${b.dataset.wdel}`,{method:"DELETE"}); toast("Removed"); } catch(err){ toast(err.message); } loadWallet(); });
+
 if (!OWNER) $("#gate").classList.add("show");
-refresh(); loadCatalog(); loadModels();
+refresh(); loadCatalog(); loadModels(); loadWallet();
 setInterval(refresh, 4000); setInterval(loadCatalog, 8000);
 </script>
 </body>

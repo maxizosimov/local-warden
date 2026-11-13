@@ -35,6 +35,8 @@ class FakeOllama(BaseHTTPRequestHandler):
             return self._json({"version": "0.9.0"})
         if self.path == "/api/tags" and s["native"]:
             return self._json({"models": [{"name": n, "size": 2_000_000_000} for n in s["installed"]]})
+        if self.path == "/api/ps" and s["native"]:
+            return self._json({"models": [{"name": n, "size": 4_700_000_000} for n in s.get("loaded", [])]})
         if self.path == "/v1/models":
             return self._json({"data": [{"id": n} for n in s["installed"]]})
         self._json({"error": "not found"}, 404)
@@ -49,6 +51,9 @@ class FakeOllama(BaseHTTPRequestHandler):
             self.wfile.write(b'{"status":"success"}\n')
             s["installed"].append(body["model"])
             return
+        if self.path == "/api/generate" and body.get("keep_alive") == 0:
+            s["loaded"] = [n for n in s.get("loaded", []) if n != body["model"]]
+            return self._json({"done": True})
         if self.path == "/v1/chat/completions":
             system, user = body["messages"][0]["content"], body["messages"][1]["content"]
             if system.startswith("Pick"):
@@ -108,7 +113,7 @@ def test_recommendation_sized_to_memory():
 
 def test_overview_marks_installed(ollama):
     o = local_models.overview()
-    assert o["engine"] == {"kind": "ollama", "running": True, "version": "0.9.0"}
+    assert o["engine"] == {"kind": "ollama", "running": True, "version": "0.9.0", "loaded": [], "started_by_warden": False}
     assert o["active_installed"] and [m["name"] for m in o["installed"]] == ["llama3.2:1b"]
     assert next(m for m in o["catalog"] if m["name"] == "llama3.2:1b")["installed"]
 
@@ -275,3 +280,12 @@ def test_local_model_ignores_proxy_settings(ollama, monkeypatch):
     models._status_cache["v"] = None
     assert local_models.engine()["running"] and models.local_status()["reachable"]
     assert models.local_chat("Pick one. Reply with its number only.", "x") == "2"
+
+
+def test_stop_frees_memory_and_reports_what_it_did(ollama, api):
+    _, c = api
+    ollama["loaded"] = ["llama3.2:1b"]
+    assert c.get("/api/models").json()["engine"]["loaded"] == [{"name": "llama3.2:1b", "gb": 4.7}]
+    r = c.post("/api/models/stop").json()
+    assert r["unloaded"] == ["llama3.2:1b"] and r["stopped"] is False  # not started by Warden: keep it running
+    assert c.get("/api/models").json()["engine"]["loaded"] == []

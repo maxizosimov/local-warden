@@ -34,7 +34,15 @@ a{color:var(--ink2)}
 .logo{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.01em}
 .mark{width:20px;height:20px;border-radius:6px;background:conic-gradient(from 210deg,var(--agent),var(--up),var(--agent));position:relative}
 .mark::after{content:"";position:absolute;inset:5px;border-radius:2px;background:var(--bg)}
-.crumb{color:var(--mute);font-size:12.5px}.crumb b{color:var(--ink2);font-weight:500}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs a{display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:7px;color:var(--mute);text-decoration:none;font-size:12.5px;white-space:nowrap}
+.tabs a:hover{color:var(--ink);background:var(--hover)}.tabs a.on{color:var(--ink);background:var(--panel2)}
+.tabs .n{font:11px var(--monof);color:var(--bg);background:var(--amber);border-radius:5px;padding:0 5px}.tabs .n:empty{display:none}
+.view{display:none}.view.on{display:block;animation:in .2s ease}
+.single{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.mini{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.mini:last-child{border-bottom:0}.mini .r{text-align:right}
+a.more{display:block;padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--mute);text-decoration:none}a.more:hover{color:var(--ink)}
 .status{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .st{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border:1px solid var(--line);border-radius:6px;font:11.5px var(--monof);color:var(--ink2);background:var(--panel)}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--faint)}
@@ -43,7 +51,7 @@ a{color:var(--ink2)}
 .wrap{max-width:1360px;margin:0 auto;padding:20px}
 
 /* KPI strip */
-.kpis{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);border-radius:var(--r);background:var(--panel);overflow:hidden;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);background:var(--panel);overflow:hidden;margin-bottom:16px}
 .kpi{padding:14px 16px;border-right:1px solid var(--line);min-width:0}
 .kpi:last-child{border-right:0}
 .kpi .l{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em;display:flex;justify-content:space-between}
@@ -52,11 +60,11 @@ a{color:var(--ink2)}
 .kpi .s{font-size:11.5px;color:var(--mute);margin-top:2px}
 .track{height:3px;background:var(--line2);border-radius:3px;margin-top:9px;overflow:hidden}
 .track i{display:block;height:100%;background:var(--up);border-radius:3px;transition:width .5s}
-@media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.kpi{border-bottom:1px solid var(--line)}.kpi:nth-child(2n){border-right:0}.kpi:last-child{grid-column:1/-1}}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.kpi{border-bottom:1px solid var(--line)}.kpi:nth-child(2n){border-right:0}}
 
 /* layout */
 .grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px}
-@media (max-width:1060px){.grid{grid-template-columns:1fr}}
+@media (max-width:1060px){.grid{grid-template-columns:1fr!important}}
 .col{display:flex;flex-direction:column;gap:16px;min-width:0}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:0}
 .ph{display:flex;align-items:center;gap:8px;height:42px;padding:0 14px;border-bottom:1px solid var(--line)}
@@ -241,70 +249,90 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
   font-size:12.5px;opacity:0;transition:.2s;pointer-events:none;max-width:90vw;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-details-marker{display:none}
-@media (max-width:600px){.composer .kbd{display:none}.wrap{padding:12px 16px}.top{padding:0 16px}.crumb{display:none}.status .st:nth-child(2){display:none}}
+@media (max-width:600px){.composer .kbd{display:none}.wrap{padding:12px 16px}.top{padding:0 16px}.logo span+span{display:none}.status{display:none}.status .st:nth-child(2){display:none}}
 </style>
 </head>
 <body>
 <div class="top">
-  <div class="logo"><span class="mark"></span>Warden</div>
-  <div class="crumb">/ <b>local workspace</b> / spend control</div>
+  <div class="logo"><span class="mark"></span><span>Warden</span></div>
+  <nav class="tabs" id="tabs">
+    <a href="#home" data-v="home">Home <span class="n" id="navNeeds"></span></a>
+    <a href="#watch" data-v="watch">Watchlist</a>
+    <a href="#orders" data-v="orders">Orders</a>
+    <a href="#controls" data-v="controls">Controls</a>
+    <a href="#activity" data-v="activity">Activity</a>
+  </nav>
   <div class="status" id="ledger"></div>
 </div>
 
 <div class="wrap">
-  <div class="kpis" id="kpis"></div>
-
-  <div class="grid">
-    <div class="col">
-
-      <div class="panel">
-        <div class="pb">
-          <div class="composer">
-            <form id="cmdForm">
-              <span class="glyph">›</span>
-              <input id="cmd" autocomplete="off" placeholder="Ask your agent to buy, watch, or research something…">
-              <span class="kbd">⌘K</span>
-              <button class="btn sm">Run</button>
-            </form>
-            <div class="foot">
-              <span class="model" id="modelFoot"></span>
-              <span style="margin-left:auto" id="modeFoot"></span>
+  <section class="view" data-view="home">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid">
+      <div class="col">
+        <div class="panel">
+          <div class="pb">
+            <div class="composer">
+              <form id="cmdForm">
+                <span class="glyph">›</span>
+                <input id="cmd" autocomplete="off" placeholder="Ask your agent to buy, watch, or research something…">
+                <span class="kbd">⌘K</span>
+                <button class="btn sm">Run</button>
+              </form>
+              <div class="foot">
+                <span class="model" id="modelFoot"></span>
+                <span style="margin-left:auto" id="modeFoot"></span>
+              </div>
             </div>
+            <div class="sugs" id="chips"></div>
+            <div class="trace" id="result"></div>
           </div>
-          <div class="sugs" id="chips"></div>
-          <div class="trace" id="result"></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h3>Needs you</h3><span class="count" id="inCount">0</span><span class="right sub">approve, then pay at the store</span></div>
+          <div id="inbox"></div>
         </div>
       </div>
-
-      <div class="panel">
-        <div class="ph"><h3>Needs you</h3><span class="count" id="inCount">0</span><span class="right sub">approve, then pay at the store</span></div>
-        <div id="inbox"></div>
+      <div class="col">
+        <div class="panel">
+          <div class="ph"><h3>Watching</h3><span class="count" id="monCount">0</span><span class="right sub">price watches</span></div>
+          <div id="watchMini"></div>
+          <a class="more" href="#watch">Watchlist and sale simulator →</a>
+        </div>
+        <div class="panel">
+          <div class="ph"><h3>Recent orders</h3></div>
+          <div id="ordersMini"></div>
+          <a class="more" href="#orders">All orders →</a>
+        </div>
       </div>
-
-      <div class="panel">
-        <div class="ph"><h3>Watchlist</h3><span class="count" id="monCount">0</span><span class="right sub">price monitors</span></div>
-        <div class="scroll"><table id="monitors"></table></div>
-      </div>
-
-      <div class="panel">
-        <div class="ph"><h3>Transactions</h3><span class="count" id="ordCount">0</span>
-          <span class="right"><button class="btn ghost sm" type="button" id="csv">Export CSV</button></span></div>
-        <div class="scroll"><table id="orders"></table></div>
-      </div>
-
-      <details class="panel sim">
-        <summary class="ph" style="border-bottom:0"><h3>Market simulator</h3><span class="b agent">demo-store</span><span class="right sub">trigger sales to test monitors ▾</span></summary>
-        <div class="scroll" style="border-top:1px solid var(--line)"><table id="catalog"></table></div>
-      </details>
     </div>
+  </section>
 
-    <div class="col">
-      <div class="panel">
-        <div class="ph"><h3>Who does what</h3><span class="right sub" id="localState"></span></div>
-        <div class="mm" id="mm"></div>
-        <div id="roles"></div>
-      </div>
+  <section class="view" data-view="watch"><div class="single">
+    <div class="panel">
+      <div class="ph"><h3>Watchlist</h3><span class="right sub">waits for a price, then buys or tells you · still checked by policy</span></div>
+      <div class="scroll"><table id="monitors"></table></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h3>Market simulator</h3><span class="b agent">demo-store</span><span class="right sub">put items on sale to fire watches</span></div>
+      <div class="scroll"><table id="catalog"></table></div>
+    </div>
+  </div></section>
 
+  <section class="view" data-view="orders"><div class="single">
+    <div class="panel">
+      <div class="ph"><h3>Transactions</h3><span class="count" id="ordCount">0</span>
+        <span class="right"><button class="btn ghost sm" type="button" id="csv">Export CSV</button></span></div>
+      <div class="scroll"><table id="orders"></table></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h3>Track record</h3><span class="right sub">proposals you paid</span></div>
+      <div id="track"></div>
+    </div>
+  </div></section>
+
+  <section class="view" data-view="controls">
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
       <div class="panel">
         <div class="ph"><h3>Risk dial</h3><span class="right sub">autonomy inside hard limits</span></div>
         <div class="dialwrap">
@@ -313,7 +341,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
           <div class="dlabels"><span>Observe</span><span>Autonomous</span></div>
           <div class="ddesc" id="dialDesc"></div>
         </div>
-        <details class="limits">
+        <details class="limits" open>
           <summary>Hard limits</summary>
           <form class="lf" id="limits">
             <label>Max per purchase<input name="max_per_transaction" type="number" step="1"></label>
@@ -330,18 +358,20 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
           </form>
         </details>
       </div>
-
-      <div class="panel">
-        <div class="ph"><h3>Track record</h3><span class="right sub">proposals you paid</span></div>
-        <div id="track"></div>
-      </div>
-
-      <div class="panel">
-        <div class="ph"><h3>Activity</h3><span class="right mono sub" id="ledgerHead"></span></div>
-        <div class="feed" id="feed"></div>
+      <div class="panel" style="align-self:start">
+        <div class="ph"><h3>Who does what</h3><span class="right sub" id="localState"></span></div>
+        <div class="mm" id="mm"></div>
+        <div id="roles"></div>
       </div>
     </div>
-  </div>
+  </section>
+
+  <section class="view" data-view="activity"><div class="single">
+    <div class="panel">
+      <div class="ph"><h3>Activity</h3><span class="right mono sub" id="ledgerHead"></span></div>
+      <div class="feed" id="feed" style="max-height:none"></div>
+    </div>
+  </div></section>
 </div>
 <div class="toast" id="toast"></div>
 <div class="gate" id="gate"><form class="c" id="gateForm">
@@ -363,7 +393,14 @@ const setOwner = t => { OWNER = t; try { localStorage.setItem("warden_owner", t)
 const takeHashToken = () => { const t = new URLSearchParams(location.hash.slice(1)).get("owner");
   if (t){ setOwner(t); history.replaceState(null, "", location.pathname); } return !!t; };
 takeHashToken();
-addEventListener("hashchange", () => { if (takeHashToken()){ refresh(); loadCatalog(); loadModels(); } });
+const VIEWS = ["home","watch","orders","controls","activity"];
+function route(){
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "home";
+  document.querySelectorAll(".view").forEach(el => el.classList.toggle("on", el.dataset.view === v));
+  document.querySelectorAll("#tabs a").forEach(el => el.classList.toggle("on", el.dataset.v === v));
+}
+route();
+addEventListener("hashchange", () => { if (takeHashToken()){ refresh(); loadCatalog(); loadModels(); } route(); });
 const raw = (path, opts={}) => fetch(path, {...opts, headers:{"Content-Type":"application/json","X-Warden-Owner":OWNER},
   body: opts.body ? JSON.stringify(opts.body) : undefined});
 const api = async (path, opts={}) => {
@@ -613,10 +650,10 @@ async function refresh(){
   const pendAmt = pend.reduce((s,a)=>{const it=JSON.parse(a.intent),pr=JSON.parse(a.product);return s+pr.price*it.quantity},0);
   $("#kpis").innerHTML =
     kpi("Spent today", `<span class="num">${money(S.spend.today)}</span>`, `of ${money(p.daily_cap)} daily cap`, S.spend.today/p.daily_cap*100) +
-    kpi("This month", `<span class="num">${money(S.spend.month)}</span>`, `of ${money(p.monthly_cap)} monthly cap`, S.spend.month/p.monthly_cap*100) +
     kpi("Needs you", `<span class="num" style="${pend.length+handoffs.length?"color:var(--amber)":""}">${pend.length+handoffs.length}</span> <small>${money(pendAmt+handoffs.reduce((s,o)=>s+o.expected_total,0))}</small>`, `${pend.length} to approve · ${handoffs.length} to pay`, null) +
     kpi("Watching", `<span class="num">${active.length}</span>`, `${S.monitors.filter(x=>x.status==="triggered").length} triggered all-time`, null) +
-    kpi("Risk level", `<span class="num" style="color:${RCOL[p.risk_level]}">${p.risk_level}</span> <small>${esc(p.risk_name)}</small>`, `max ${money(p.max_per_transaction)} / purchase`, null);
+    kpi("Risk level", `<span class="num" style="color:${RCOL[p.risk_level]}">${p.risk_level}</span> <small>${esc(p.risk_name)}</small>`, `max ${money(p.max_per_transaction)} / purchase · <a href="#controls">change</a>`, null);
+  $("#navNeeds").textContent = pend.length + handoffs.length || "";
 
   document.querySelectorAll("#dial button").forEach(b=>{ const l=+b.dataset.l, on = l<=p.risk_level;
     b.classList.toggle("lit",on); b.style.background = on?RCOL[p.risk_level]:""; b.style.opacity = on && l<p.risk_level ? .32 : 1; });
@@ -629,6 +666,14 @@ async function refresh(){
 
 
   $("#monCount").textContent = active.length;
+  $("#watchMini").innerHTML = active.map(x=>`<div class="mini"><div><span class="name">${esc(x.name)}</span>
+      <div class="sub">${x.min_discount_pct?`at ${x.min_discount_pct}% off`:""}${x.max_price?` under ${money(x.max_price)}`:""} · then ${esc(x.action)}</div></div>
+      <div class="r num">${x.last_price!=null?money(x.last_price):`<span class="sub">checking…</span>`}</div></div>`).join("") ||
+    `<div class="empty">Nothing watched. Try “buy the propane grill when it's 25% off”.</div>`;
+  $("#ordersMini").innerHTML = S.orders.filter(o=>o.status!=="handed_off").slice(0,4).map(o=>`<div class="mini"><div><span class="name">${esc(o.item)}</span>
+      <div class="sub">${esc(o.merchant)} · ${ago(o.ts)} ago</div></div>
+      <div class="r"><div class="num">${money(o.total)}</div><span class="b ${o.status}">${label(o.status)}</span></div></div>`).join("") ||
+    `<div class="empty">No orders yet.</div>`;
   $("#monitors").innerHTML = S.monitors.length ? `<thead><tr><th>Item</th><th class="r">Last</th><th class="r">Δ vs list</th><th>Trend</th><th>Target</th><th>Then</th><th>Status</th><th></th></tr></thead><tbody>` +
     S.monitors.map(x=>{ const hist=JSON.parse(x.history||"[]"); const first = hist.length? Math.max(...hist.map(h=>h[1])) : null;
       const chg = (first && x.last_price!=null) ? (x.last_price/first-1)*100 : 0;

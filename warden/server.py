@@ -7,6 +7,7 @@ import html
 import json
 import threading
 import os
+import re
 import secrets
 from pathlib import Path
 
@@ -200,6 +201,66 @@ def models_test():
     hub.log("model_tested", "user", model=models.LOCAL_MODEL,
             passed=sum(r["ok"] for r in results), of=len(results))
     return {"model": models.LOCAL_MODEL, "results": results}
+
+
+# ---- accounts: store logins and payment methods (masked only) ---------------
+# Warden keeps who and which, never the secret: a label, a login name, the last 4
+# digits. Passwords and full card or account numbers are never sent here, so a
+# leaked data folder (or an agent) can't use them. Real payment goes through
+# single-use virtual cards (see vault.py), not these.
+WALLET = DATA / "wallet.json"
+WALLET_KINDS = {"login": ("store", "login"), "card": ("label", "last4"), "bank": ("label", "last4")}
+DEMO_WALLET = [
+    {"kind": "login", "store": "demo-store", "login": "demo.shopper@example.com"},
+    {"kind": "card", "label": "Demo Visa", "last4": "4242"},
+    {"kind": "bank", "label": "Demo Checking", "last4": "6789"},
+]
+
+
+def _wallet() -> list[dict]:
+    if not WALLET.exists():
+        _save_wallet([{**w, "id": secrets.token_hex(4), "demo": True} for w in DEMO_WALLET])
+    return json.loads(WALLET.read_text())
+
+
+def _save_wallet(items: list[dict]) -> None:
+    WALLET.write_text(json.dumps(items, indent=1))
+    WALLET.chmod(0o600)
+
+
+@app.get("/api/wallet", dependencies=[Depends(owner)])
+def wallet():
+    return _wallet()
+
+
+@app.post("/api/wallet", dependencies=[Depends(owner)])
+def wallet_add(body: dict = Body(...)):
+    kind = body.get("kind")
+    if kind not in WALLET_KINDS:
+        raise HTTPException(400, "kind must be login, card or bank")
+    item = {"kind": kind, "id": secrets.token_hex(4)}
+    for k in WALLET_KINDS[kind]:
+        v = str(body.get(k) or "").strip()
+        if not v or len(v) > 80:
+            raise HTTPException(400, f"{k} required")
+        item[k] = v
+    if "last4" in item and not re.fullmatch(r"\d{4}", item["last4"]):
+        raise HTTPException(400, "last4 must be the last 4 digits only")
+    items = _wallet() + [item]
+    _save_wallet(items)
+    hub.log("account_added", "user", type=kind, name=item.get("store") or item.get("label"))
+    return item
+
+
+@app.delete("/api/wallet/{wid}", dependencies=[Depends(owner)])
+def wallet_remove(wid: str):
+    items = _wallet()
+    gone = [w for w in items if w["id"] == wid]
+    if not gone:
+        raise HTTPException(404)
+    _save_wallet([w for w in items if w["id"] != wid])
+    hub.log("account_removed", "user", type=gone[0]["kind"], name=gone[0].get("store") or gone[0].get("label"))
+    return {"ok": True}
 
 
 # ---- handoffs (no-payment mode) --------------------------------------------

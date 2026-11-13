@@ -91,3 +91,18 @@ def test_demo_checkout_escapes_and_bounds(srv):
     _, c = srv
     assert c.get("/demo/cart/NOPE").status_code == 404
     assert "×99" in c.get("/demo/cart/PEN-510?qty=5000").text
+
+
+def test_wallet_keeps_masked_details_only(srv):
+    server, c = srv
+    O = {"X-Warden-Owner": server.OWNER_TOKEN}
+    assert c.get("/api/wallet").status_code == 401
+    assert c.get("/api/wallet", headers=H(server.AGENT_TOKEN)).status_code == 401  # agents never see it
+    assert {w["kind"] for w in c.get("/api/wallet", headers=O).json()} == {"login", "card", "bank"}
+    r = c.post("/api/wallet", json={"kind": "login", "store": "staples", "login": "me@example.com",
+                                    "password": "hunter2"}, headers=O).json()
+    assert "password" not in r and "hunter2" not in (server.DATA / "wallet.json").read_text()
+    assert c.post("/api/wallet", json={"kind": "card", "label": "Visa", "last4": "4242424242424242"},
+                  headers=O).status_code == 400
+    c.delete(f"/api/wallet/{r['id']}", headers=O)
+    assert all(w["id"] != r["id"] for w in c.get("/api/wallet", headers=O).json())

@@ -106,3 +106,32 @@ def test_wallet_keeps_masked_details_only(srv):
                   headers=O).status_code == 400
     c.delete(f"/api/wallet/{r['id']}", headers=O)
     assert all(w["id"] != r["id"] for w in c.get("/api/wallet", headers=O).json())
+
+
+def test_guided_demo_script(srv):
+    """The steps the dashboard's Demo tour runs, in order."""
+    server, c = srv
+    O = {"X-Warden-Owner": server.OWNER_TOKEN}
+    post = lambda path, body=None: c.post(path, json=body or {}, headers=O).json()
+    c.put("/api/policy", json={"risk_level": 3, "pay_merchants": ["demo-store"]}, headers=O)
+    post("/api/tasks", {"text": "buy a chair"})
+    assert post("/api/demo/clear")["ok"]
+    s = c.get("/api/state", headers=O).json()
+    assert s["policy"]["risk_level"] == 1 and s["policy"]["pay_merchants"] == []
+    assert not [a for a in s["approvals"] if a["status"] == "pending"]
+
+    r = post("/api/tasks", {"text": "buy gel pens"})
+    assert r["status"] == "awaiting_approval"
+    r = post(f"/api/approvals/{r['approval_id']}/approve")
+    assert r["status"] == "handed_off"
+    assert post(f"/api/orders/{r['order_id']}/paid", {"amount": r["expected_total"]})["outcome"] == "as_proposed"
+
+    assert post("/api/tasks", {"text": "buy the propane grill when it's 25% off"})["status"] == "monitoring"
+    fired = post("/api/demo/sale", {"sku": "GRL-400", "pct_off": 25})["fired"]
+    assert fired and fired[0]["status"] == "awaiting_approval"
+
+    c.put("/api/policy", json={"risk_level": 2}, headers=O)
+    assert post("/api/tasks", {"text": "buy gel pens"})["status"] == "handed_off"
+    assert post("/api/tasks", {"text": "buy 50 gel pens"})["status"] == "denied"
+    c.put("/api/policy", json={"pay_merchants": ["demo-store"]}, headers=O)
+    assert post("/api/tasks", {"text": "buy gel pens"})["status"] == "ordered"

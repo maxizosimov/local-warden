@@ -271,6 +271,22 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,8px);background:var(--panel2);color:var(--ink);border:1px solid var(--line2);padding:9px 14px;border-radius:9px;
   font-size:12.5px;opacity:0;transition:.2s;pointer-events:none;max-width:90vw;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
+/* guided demo */
+.demoBtn{height:26px;padding:0 11px;border:1px solid rgba(139,124,246,.45);background:var(--agent-bg);color:var(--ink);border-radius:7px;font-size:12px;flex:none}
+.demoBtn:hover{background:rgba(139,124,246,.2)}
+.tour-hl{position:relative;z-index:6;border-radius:12px;outline:2px solid var(--agent);outline-offset:4px;box-shadow:0 0 0 9999px rgba(0,0,0,.5);transition:outline-color .2s}
+.tour{position:fixed;right:20px;bottom:20px;z-index:30;width:360px;max-width:calc(100vw - 32px);background:var(--panel2);border:1px solid var(--line2);border-radius:14px;
+  box-shadow:0 20px 50px rgba(0,0,0,.6);padding:18px;display:none;animation:in .2s ease}
+.tour.show{display:block}
+.tour .tn{font:11px var(--monof);color:var(--agent);letter-spacing:.04em}
+.tour h4{margin:6px 0 6px;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.tour p{margin:0;font-size:13px;color:var(--ink2);line-height:1.55}
+.tour .tres{margin-top:12px;padding:9px 11px;border-radius:8px;background:var(--bg2);border:1px solid var(--line);font-size:12.5px;color:var(--ink)}
+.tour .tres:empty{display:none}.tour .tres.down{color:var(--down)}
+.tour .tbar{display:flex;gap:6px;align-items:center;margin-top:14px}
+.tour .tbar .grow{flex:1}
+.tour .tdots{display:flex;gap:3px;margin-top:12px}.tour .tdots i{flex:1;height:3px;border-radius:2px;background:var(--line2)}.tour .tdots i.on{background:var(--agent)}
+@media (max-width:600px){.tour{right:16px;left:16px;bottom:16px;width:auto}}
 details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-details-marker{display:none}
 @media (max-width:600px){.composer .kbd{display:none}.wrap{padding:12px 16px}.top{padding:0 16px}.logo span+span{display:none}.status{display:none}.status .st:nth-child(2){display:none}}
 </style>
@@ -288,6 +304,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
     <a href="#activity" data-v="activity">Activity</a>
   </nav>
   <div class="status" id="ledger"></div>
+  <button class="demoBtn" type="button" id="demoBtn" title="A guided tour with simulated data">▶ Demo</button>
 </div>
 
 <div class="wrap">
@@ -362,7 +379,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
   </div></section>
 
   <section class="view" data-view="controls"><div class="settings">
-    <div class="seg">
+    <div class="seg" id="segRisk">
       <div><h2>Risk dial</h2><p class="hint">How much Warden may do without asking you. The limits below apply at every level.</p></div>
       <div class="body">
         <div class="rl"><span class="lvl num" id="lvlNum">1</span><span class="nm" id="lvlName"></span></div>
@@ -372,7 +389,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
       </div>
     </div>
     <form class="pform stack" style="gap:16px">
-      <div class="seg">
+      <div class="seg" id="segLimits">
         <div><h2>Spending limits</h2><p class="hint">Never exceeded, whatever the agent or risk level says.</p></div>
         <div class="body"><div class="fields">
           <label>Max per purchase<span class="money-in"><input name="max_per_transaction" type="number" step="1"></span></label>
@@ -394,7 +411,7 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
     </form>
   </div></section>
 
-  <section class="view" data-view="accounts"><div class="settings">
+  <section class="view" data-view="accounts"><div class="settings" id="accountsBox">
     <div class="note">Demo: Warden keeps only names, logins and the last 4 digits. Passwords and full numbers never leave this page.</div>
     <div class="seg">
       <div><h2>Store logins</h2><p class="hint">Accounts Warden can check out with. Agents never get these.</p></div>
@@ -457,6 +474,13 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
   </div></section>
 </div>
 <div class="toast" id="toast"></div>
+<div class="tour" id="tour" role="dialog" aria-label="Guided demo">
+  <div class="tn" id="tourN"></div><h4 id="tourT"></h4><p id="tourD"></p>
+  <div class="tres" id="tourRes"></div>
+  <div class="tdots" id="tourDots"></div>
+  <div class="tbar"><button class="btn ghost sm" type="button" id="tourExit">Exit</button><span class="grow"></span>
+    <button class="btn ghost sm" type="button" id="tourBack">Back</button><button class="btn ok sm" type="button" id="tourGo"></button></div>
+</div>
 <div class="gate" id="gate"><form class="c" id="gateForm">
   <div class="logo"><span class="mark"></span>Warden</div>
   <p class="sub" style="margin:12px 0 0">Open the link the hub printed in your terminal, or paste the owner token from <span class="mono">data/owner_token</span>. Don't give this token to your agent; it gets <span class="mono">data/agent_token</span>.</p>
@@ -865,6 +889,103 @@ document.querySelectorAll(".addf").forEach(f => f.onsubmit = async e => {
 });
 document.addEventListener("click", async e => { const b = e.target.closest("[data-wdel]"); if (!b) return;
   try { await api(`/api/wallet/${b.dataset.wdel}`,{method:"DELETE"}); toast("Removed"); } catch(err){ toast(err.message); } loadWallet(); });
+
+// ---- guided demo: each step opens a tab, highlights the part it's about, and can run itself ----
+const newest = (xs, f) => xs.filter(f).sort((a,b)=>b.id-a.id)[0];
+async function tAsk(text){
+  const r = await api("/api/tasks",{method:"POST",body:{text}}); showResult(r); await refresh();
+  return r.message || label(r.status);
+}
+async function tApprove(){
+  await refresh(); const a = newest(S.approvals, a=>a.status==="pending"); if (!a) return "Nothing waiting for approval.";
+  const r = await api(`/api/approvals/${a.id}/approve`,{method:"POST"}); await refresh();
+  return r.status==="handed_off" ? "Approved. Warden made a cart: it's now under Needs you, ready to pay." : (r.message || label(r.status));
+}
+async function tPay(){
+  await refresh(); const o = newest(S.orders, o=>o.status==="handed_off"); if (!o) return "Nothing left to pay. If you used the checkout, it's already recorded.";
+  await api(`/api/orders/${o.id}/paid`,{method:"POST",body:{amount:o.expected_total}}); await refresh();
+  return `Paid ${money(o.expected_total)} for ${o.item} with the fake card. It's in Orders, shipping.`;
+}
+const TOUR = [
+  {v:"home", el:"#kpis", t:"Meet Warden",
+   d:"Warden sits between your AI agents and your money. Agents ask, Warden checks your rules, and you approve and pay. The store, card and bank here are all fake.",
+   go:"Start fresh", run: async()=>{ await api("/api/demo/clear",{method:"POST"}); await refresh(); return "Board cleared. Risk dial set to 1: every purchase asks you first."; }},
+  {v:"home", el:".composer", t:"Ask in plain English",
+   d:"You, or any connected agent, say what you want. The local model reads it and finds the item. Then the policy engine, not the model, decides.",
+   go:"Ask “buy gel pens”", run:()=>tAsk("buy gel pens")},
+  {v:"home", el:"#inbox", t:"You approve",
+   d:"At risk level 1, every purchase waits here with Warden's reasons. Approve or reject.",
+   go:"Approve", run:tApprove},
+  {v:"home", el:"#inbox", t:"You pay, the agent never does",
+   d:"Approving gives you a cart. You pay at the store, so no agent ever touches your card. Click “Pay at demo-store” to see the fake checkout, or let the tour pay.",
+   go:"Pay (simulated)", run:tPay},
+  {v:"watch", el:"#watchForm", t:"Wait for a price",
+   d:"Watches wait until a price drops, then buy it or tell you. Whatever a watch buys still goes through your rules.",
+   go:"Watch the grill at 25% off", run:async()=>{ $("#wItem").value="propane grill"; $("#wKind").value="pct"; $("#wVal").value=25; $("#wAct").value="buy";
+     const m = await tAsk("buy the propane grill when it's 25% off"); $("#wItem").value=""; return m; }},
+  {v:"watch", el:"#monitors", t:"The price drops",
+   d:"In real use Warden checks prices every 15 seconds. Here we put the grill on sale ourselves.",
+   go:"Simulate a 25% sale", run:async()=>{ const r = await api("/api/demo/sale",{method:"POST",body:{sku:"GRL-400",pct_off:25}}); await refresh();
+     return r.fired.length ? `Watch fired: ${r.fired.map(f=>f.message).join(" ")}` : `Grill is now ${money(r.product.price)}.`; }},
+  {v:"home", el:"#inbox", t:"The watch brought it to you",
+   d:"The grill hit its price. It costs over $50, so it waits for your OK. Watching and Latest show what happened.",
+   go:"Approve and pay", run:async()=>{ const a = await tApprove(); return a.startsWith("Approved") ? await tPay() : a; }},
+  {v:"controls", el:"#segRisk", t:"Turn up trust",
+   d:"The risk dial sets how much happens without asking. At level 2, small buys at approved stores go through by themselves.",
+   go:"Set level 2, ask for pens", run:async()=>{ await api("/api/policy",{method:"PUT",body:{risk_level:2}}); await refresh();
+     const m = await tAsk("buy gel pens"); const o = newest(S.orders, o=>o.status==="handed_off");
+     return o ? `Nobody asked you: ${o.item} went straight to a cart for ${money(o.expected_total)}.` : m; }},
+  {v:"controls", el:"#segLimits", t:"Hard limits never move",
+   d:"Max per purchase and the daily and monthly caps apply at every level, whatever an agent says.",
+   go:"Ask for 50 packs of pens", run:async()=>{ const r = await api("/api/tasks",{method:"POST",body:{text:"buy 50 gel pens"}}); showResult(r); await refresh();
+     return r.status==="denied" ? `Blocked. ${r.decision ? r.decision.reasons.join(" ") : r.message}` : (r.message || label(r.status)); }},
+  {v:"orders", el:"#track", t:"Trust is earned per store",
+   d:"Each cart you pay unchanged counts toward a track record. Once a store earns it, Warden can pay there itself with a single-use virtual card locked to one store and amount.",
+   go:"Let Warden pay at demo-store", run:async()=>{ await tPay(); await api("/api/policy",{method:"PUT",body:{pay_merchants:["demo-store"]}});
+     const r = await api("/api/tasks",{method:"POST",body:{text:"buy gel pens"}}); showResult(r); await refresh();
+     return r.status==="ordered" ? `Bought by Warden with a single-use card: order ${r.merchant_order_id}. You didn't touch anything.` : (r.message || label(r.status)); }},
+  {v:"agents", el:"#mm", t:"The local model",
+   d:"A small model runs on this computer through Ollama. It reads requests and picks items, and rules take over if it's off. It never approves or pays. Start, stop and download models here.",
+   go:"Test the model", run:async()=>{ await loadModels(); if (!MM || !MM.engine.running) return "Ollama is off, so rules are doing these jobs. Press Start Ollama to turn it on.";
+     if (!MM.active_installed) return `${MM.active} isn't downloaded, so rules are doing these jobs. Press Manage to download one.`;
+     mmTesting = true; renderModels(); try { mmTest = await api("/api/models/test",{method:"POST"}); } finally { mmTesting = false; renderModels(); }
+     return `${mmTest.results.filter(r=>r.ok).length} of ${mmTest.results.length} jobs handled by ${mmTest.model}.`; }},
+  {v:"accounts", el:"#accountsBox", t:"Your accounts stay yours",
+   d:"Store logins, cards and bank accounts. Warden keeps only names and the last 4 digits, and agents can't see this page."},
+  {v:"activity", el:"#feed", t:"Everything is on the record",
+   d:"Every step is written to a hash-chained ledger, so editing history breaks the chain. The badge at the top shows it's verified.",
+   go:"Finish", run:async()=>{ await api("/api/policy",{method:"PUT",body:{risk_level:1,pay_merchants:[]}}); await refresh(); return "Done. Back to level 1, and Warden no longer pays by itself. Run ▶ Demo again anytime."; }},
+];
+let TI = -1, tDone = false, tBusy = false;
+function tourShow(i){
+  TI = i; tDone = false; const st = TOUR[i];
+  document.querySelectorAll(".tour-hl").forEach(el=>el.classList.remove("tour-hl"));
+  if (location.hash.slice(1) !== st.v) location.hash = st.v; route();
+  const el = $(st.el) && ($(st.el).closest(".panel,.seg") || $(st.el)); if (el){ el.classList.add("tour-hl"); setTimeout(()=>el.scrollIntoView({behavior:"smooth", block:"center"}), 60); }
+  $("#tourN").textContent = `DEMO · ${i+1} OF ${TOUR.length}`; $("#tourT").textContent = st.t; $("#tourD").textContent = st.d;
+  $("#tourRes").textContent = ""; $("#tourRes").className = "tres";
+  $("#tourDots").innerHTML = TOUR.map((_,k)=>`<i class="${k<=i?"on":""}"></i>`).join("");
+  $("#tourBack").style.visibility = i ? "visible" : "hidden";
+  tourBtn(); $("#tour").classList.add("show");
+}
+function tourBtn(){
+  const st = TOUR[TI], last = TI === TOUR.length-1, b = $("#tourGo");
+  b.disabled = tBusy;
+  b.textContent = tBusy ? "Working…" : (st.run && !tDone) ? st.go : last ? "Close" : "Next →";
+}
+function tourEnd(){ TI = -1; $("#tour").classList.remove("show"); document.querySelectorAll(".tour-hl").forEach(el=>el.classList.remove("tour-hl")); }
+$("#demoBtn").onclick = () => tourShow(0);
+$("#tourExit").onclick = tourEnd;
+$("#tourBack").onclick = () => TI > 0 && tourShow(TI-1);
+$("#tourGo").onclick = async () => {
+  const st = TOUR[TI];
+  if (!st.run || tDone){ return TI < TOUR.length-1 ? tourShow(TI+1) : tourEnd(); }
+  tBusy = true; tourBtn();
+  try { $("#tourRes").textContent = await st.run(); }
+  catch(err){ $("#tourRes").textContent = err.message; $("#tourRes").className = "tres down"; }
+  tBusy = false; tDone = true; tourBtn();
+};
+document.addEventListener("keydown", e => { if (e.key === "Escape" && TI >= 0) tourEnd(); });
 
 if (!OWNER) $("#gate").classList.add("show");
 loadCatalog().then(refresh); loadModels(); loadWallet();

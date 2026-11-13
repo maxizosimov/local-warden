@@ -371,6 +371,19 @@ class Hub:
                 self.notify("Order check", f"{item} ${total:.2f} at {merchant}: {note}")
             return {"confirmation_id": cid, "result": result, "note": note}
 
+    def reset_demo(self, actor: str = "demo") -> None:
+        """Wipe the demo store's orders, approvals, watches and confirmations so a demo
+        starts from zero spend. Other stores are untouched; the ledger keeps the history."""
+        with self.lock:
+            for p in REGISTRY["demo-store"].products.values():
+                p.price = p.list_price
+            for t in ("orders", "monitors", "confirmations"):
+                self.db.execute(f"DELETE FROM {t} WHERE merchant='demo-store'")
+            self.db.execute("DELETE FROM approvals WHERE json_extract(product,'$.merchant')='demo-store'")
+            self.db.commit()
+            self.set_policy({"risk_level": 1, "pay_merchants": []}, actor=actor)
+            self.log("demo_cleared", actor)
+
     def _demo_confirmation(self, merchant: str, mid: str, item: str, qty: int, total: float) -> None:
         # The demo store "emails" a confirmation for every order, as a real store would.
         if merchant == "demo-store":

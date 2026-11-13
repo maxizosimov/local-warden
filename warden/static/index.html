@@ -869,7 +869,8 @@ async function refresh(){
     : `<tbody><tr><td class="empty">No transactions yet.</td></tr></tbody>`;
 
   const ev = await api("/api/ledger?limit=60");
-  const L8 = ev.map(latestLine).filter(Boolean).slice(0,8);
+  const cut = ev.findIndex(e=>e.kind==="demo_cleared");  // Latest starts over with each demo
+  const L8 = (cut < 0 ? ev : ev.slice(0, cut)).map(latestLine).filter(Boolean).slice(0,8);
   $("#latest").innerHTML = L8.map(([tone,txt,ts])=>`<div class="lt ${tone}"><i></i><span>${txt}</span><span class="t">${ago(ts)}</span></div>`).join("") ||
     `<div class="empty">Nothing yet. Run a request or simulate a sale on a watch.</div>`;
   const reqs = ev.filter(e=>e.kind==="intent_received").slice(0,5);
@@ -930,7 +931,8 @@ async function tPay(){
 const TOUR = [
   {v:"home", el:"#kpis", t:"Meet Warden",
    d:"Warden sits between your AI agents and your money. Agents ask, Warden checks your rules, and you approve and pay. The store, card and bank here are all fake.",
-   go:"Start fresh", run: async()=>{ await api("/api/demo/clear",{method:"POST"}); await refresh(); return "Board cleared. Risk dial set to 1: every purchase asks you first."; }},
+   go:"Start fresh", run: async()=>{ await api("/api/demo/clear",{method:"POST"}); $("#result").className = "trace"; $("#wMsg").textContent = "";
+     await refresh(); return "Demo store wiped: no orders, watches or spending today. Risk dial set to 1, so every purchase asks you first."; }},
   {v:"home", el:".composer", t:"Ask in plain English",
    d:"You, or any connected agent, say what you want. The local model reads it and finds the item. Then the policy engine, not the model, decides.",
    go:"Ask “buy gel pens”", run:()=>tAsk("buy gel pens")},

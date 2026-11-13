@@ -115,10 +115,11 @@ def test_guided_demo_script(srv):
     post = lambda path, body=None: c.post(path, json=body or {}, headers=O).json()
     c.put("/api/policy", json={"risk_level": 3, "pay_merchants": ["demo-store"]}, headers=O)
     post("/api/tasks", {"text": "buy a chair"})
+    post("/api/tasks", {"text": "buy coffee"})  # level 3 + Warden pays: spends today
     assert post("/api/demo/clear")["ok"]
     s = c.get("/api/state", headers=O).json()
     assert s["policy"]["risk_level"] == 1 and s["policy"]["pay_merchants"] == []
-    assert not [a for a in s["approvals"] if a["status"] == "pending"]
+    assert not s["approvals"] and not s["orders"] and s["spend"]["today"] == 0
 
     r = post("/api/tasks", {"text": "buy gel pens"})
     assert r["status"] == "awaiting_approval"

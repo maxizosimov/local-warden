@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, ts REAL, task_id INTE
 CREATE TABLE IF NOT EXISTS monitors (id INTEGER PRIMARY KEY, ts REAL, task_id INTEGER,
     merchant TEXT, sku TEXT, name TEXT, max_price REAL, min_discount_pct REAL, qty INTEGER,
     action TEXT, status TEXT, last_price REAL, history TEXT, checked REAL, triggered_ts REAL);
+CREATE TABLE IF NOT EXISTS confirmations (id INTEGER PRIMARY KEY, ts REAL, merchant TEXT,
+    merchant_order_id TEXT, item TEXT, qty INTEGER, total REAL, order_id INTEGER, result TEXT, note TEXT);
 """
 
 # Handoff-mode columns, added to older databases on startup.
@@ -284,6 +286,7 @@ class Hub:
         self.log("order_placed", "executor", order_id=oid, merchant=adapter.name, item=live.name,
                  qty=qty, total=total, merchant_order_id=res.merchant_order_id, approved_by=approved_by)
         self.notify("Order placed", f"{live.name} x{qty} - ${total:.2f} ({res.merchant_order_id})")
+        self._demo_confirmation(adapter.name, res.merchant_order_id, live.name, qty, total)
         return {"status": "ordered", "order_id": oid, "merchant_order_id": res.merchant_order_id,
                 "message": f"Ordered {live.name} for ${total:.2f}."}
 
@@ -324,6 +327,7 @@ class Hub:
                        status, amount, amount, outcome, mid, time.time(), oid)
             self.log("handoff_paid", actor, order_id=oid, expected_total=o["expected_total"],
                      paid_total=amount, outcome=outcome, merchant_order_id=mid)
+            self._demo_confirmation(o["merchant"], mid, o["item"], o["qty"], amount)
             return {"status": status, "outcome": outcome, "merchant_order_id": mid,
                     "message": f"Recorded ${amount:.2f} paid ({outcome.replace('_', ' ')})."}
 
@@ -336,6 +340,41 @@ class Hub:
                        time.time(), oid)
             self.log("handoff_skipped", actor, order_id=oid, expected_total=o["expected_total"])
             return {"status": "skipped", "message": "Skipped. Budget released."}
+
+    # ------------------------------------------------- confirmations -----
+    def receive_confirmation(self, merchant: str, merchant_order_id: str, item: str, qty: int,
+                             total: float, source: str = "email") -> dict:
+        """A store's order confirmation, checked against what was approved. Catches
+        purchases that went around Warden and charges that differ from the approval."""
+        with self.lock:
+            o = self.db.execute("SELECT * FROM orders WHERE merchant=? AND merchant_order_id=?",
+                                (merchant, merchant_order_id)).fetchone()
+            total = round(float(total), 2)
+            if not o:
+                result, note = "unapproved", "No approved order matches. Warden never saw this purchase."
+            else:
+                approved = o["expected_total"] if o["expected_total"] is not None else o["total"]
+                diffs = []
+                if int(qty) != o["qty"]:
+                    diffs.append(f"quantity {qty}, approved {o['qty']}")
+                if abs(total - approved) > approved * AS_PROPOSED_TOLERANCE:
+                    diffs.append(f"charged ${total:.2f}, approved ${approved:.2f}")
+                result = "different" if diffs else "matched"
+                note = "; ".join(diffs).capitalize() if diffs else "Matches what you approved."
+            cid = self._exec("INSERT INTO confirmations (ts,merchant,merchant_order_id,item,qty,total,order_id,"
+                             "result,note) VALUES (?,?,?,?,?,?,?,?,?)", time.time(), merchant,
+                             merchant_order_id, item, int(qty), total, o["id"] if o else None, result, note)
+            self.log("confirmation_received", source, confirmation_id=cid, merchant=merchant,
+                     merchant_order_id=merchant_order_id, item=item, qty=int(qty), total=total,
+                     order_id=o["id"] if o else None, result=result, note=note)
+            if result != "matched":
+                self.notify("Order check", f"{item} ${total:.2f} at {merchant}: {note}")
+            return {"confirmation_id": cid, "result": result, "note": note}
+
+    def _demo_confirmation(self, merchant: str, mid: str, item: str, qty: int, total: float) -> None:
+        # The demo store "emails" a confirmation for every order, as a real store would.
+        if merchant == "demo-store":
+            self.receive_confirmation(merchant, mid, item, qty, total, source="demo-store email")
 
     def track_record(self) -> dict:
         """How often the human paid what the agent proposed, overall and per merchant."""
@@ -497,6 +536,7 @@ class Hub:
             "orders": self._rows("SELECT * FROM orders ORDER BY id DESC LIMIT 100"),
             "monitors": self._rows("SELECT * FROM monitors ORDER BY id DESC LIMIT 100"),
             "tasks": self._rows("SELECT * FROM tasks ORDER BY id DESC LIMIT 30"),
+            "confirmations": self._rows("SELECT * FROM confirmations ORDER BY id DESC LIMIT 50"),
             "models": {"local": models.local_status(), "frontier": models.frontier_status(),
                        "roles": models.ROLES},
             "ledger_ok": self.ledger.verify(),

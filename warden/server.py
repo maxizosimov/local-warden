@@ -398,6 +398,14 @@ def demo_reset():
     return {"ok": True}
 
 
+@app.post("/api/demo/unapproved-order", dependencies=[Depends(owner)])
+def demo_unapproved_order():
+    """Simulate a confirmation email for a purchase that went around Warden."""
+    p = REGISTRY["demo-store"].get_product("INK-520")
+    return hub.receive_confirmation("demo-store", "DEMO-" + secrets.token_hex(4).upper(), p.name, 1, p.price,
+                                    source="demo-store email")
+
+
 @app.post("/api/demo/clear", dependencies=[Depends(owner)])
 def demo_clear():
     """Start the guided demo from a clean board. History stays in the ledger."""

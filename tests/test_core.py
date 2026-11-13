@@ -1,3 +1,4 @@
+import json
 import pytest
 
 from warden.merchants import REGISTRY
@@ -36,7 +37,7 @@ def test_hard_limits_beat_risk_level():
     assert evaluate(pol, PurchaseIntent("demo-store", "x", 500), 0, 0).outcome == "deny"
     assert evaluate(pol, PurchaseIntent("demo-store", "gc", 20, category="gift_cards"), 0, 0).outcome == "deny"
     assert evaluate(pol, PurchaseIntent("demo-store", "x", 20, source="frontier"), 0, 0).outcome == "deny"
-    assert evaluate(pol, PurchaseIntent("demo-store", "x", 50), 180, 0).outcome == "deny"  # daily cap
+    assert evaluate(pol, PurchaseIntent("demo-store", "x", 50), 480, 0).outcome == "deny"  # daily cap
 
 
 def test_risk_dial():
@@ -116,3 +117,14 @@ def test_explicit_quantity():
 
 def test_search_strongest_only():
     assert all("Chair" in p.name for p in REGISTRY["demo-store"].search("office chair"))
+
+
+def test_fired_watch_remembers_what_happened(hub):
+    from warden.merchants import REGISTRY
+    r = hub.submit_text("buy the propane grill when it's 25% off")
+    assert r["status"] == "monitoring"
+    REGISTRY["demo-store"].set_sale("GRL-400", 25)
+    fired = hub.tick_monitors()
+    assert fired[0]["status"] == "awaiting_approval"  # $261.75 on sale, risk level 1 asks
+    m = hub.snapshot()["monitors"][0]
+    assert m["status"] == "triggered" and json.loads(m["outcome"])["status"] == "awaiting_approval"

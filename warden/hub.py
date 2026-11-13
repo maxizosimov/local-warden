@@ -57,6 +57,8 @@ class Hub:
         for col, typ in ORDER_COLUMNS.items():
             if col not in have:
                 self.db.execute(f"ALTER TABLE orders ADD COLUMN {col} {typ}")
+        if "outcome" not in {r[1] for r in self.db.execute("PRAGMA table_info(monitors)")}:
+            self.db.execute("ALTER TABLE monitors ADD COLUMN outcome TEXT")  # what happened when it fired
         self.db.commit()
         self.vault = MockVault()
         self.lock = threading.RLock()
@@ -454,9 +456,12 @@ class Hub:
             self.log("monitor_triggered", "monitor", monitor_id=m["id"], price=p.price, discount=p.discount_pct)
             if m["action"] == "notify":
                 self.notify("Price alert", f"{p.name} is ${p.price:.2f} ({p.discount_pct}% off)")
-                fired.append({"monitor_id": m["id"], "status": "notified"})
+                r = {"status": "notified", "message": f"Told you: now ${p.price:.2f}."}
             else:
-                fired.append({"monitor_id": m["id"], **self._propose(p, m["qty"], "local", m["task_id"], p.merchant, actor="monitor")})
+                r = self._propose(p, m["qty"], "local", m["task_id"], p.merchant, actor="monitor")
+            self._exec("UPDATE monitors SET outcome=? WHERE id=?",
+                       json.dumps({"status": r["status"], "message": r.get("message", "")}), m["id"])
+            fired.append({"monitor_id": m["id"], "name": m["name"], **r})
         return fired
 
     # ---------------------------------------------------------- orders -----
@@ -469,12 +474,10 @@ class Hub:
                 self.log("order_status", "merchant", order_id=o["id"], status=new, was=o["status"])
 
     # ------------------------------------------------------ background -----
-    def start_background(self, interval: float = 15.0, jitter_demo: bool = True) -> None:
+    def start_background(self, interval: float = 15.0) -> None:
         def loop():
             while not self._stop.wait(interval):
                 try:
-                    if jitter_demo:
-                        REGISTRY["demo-store"].jitter()
                     self.tick_monitors()
                     self.refresh_orders()
                 except Exception as e:

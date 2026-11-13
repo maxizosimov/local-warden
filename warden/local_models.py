@@ -34,7 +34,7 @@ ENOUGH_GB = 5.0  # bigger models don't do Warden's small jobs noticeably better
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$")
 
 PULLS: dict[str, dict] = {}  # model name -> download progress
-START = {"starting": False, "error": None}  # Warden starting Ollama for you
+START = {"starting": False, "error": None, "proc": None}  # Warden starting Ollama for you; proc: the one it started
 _lock = threading.Lock()
 
 
@@ -113,10 +113,25 @@ def _local_url() -> bool:
     return re.match(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?(/|$)", models.LOCAL_URL) is not None
 
 
+def _loaded() -> list[dict]:
+    """Models Ollama has in memory right now."""
+    try:
+        with _ollama("GET", "/api/ps", timeout=2) as r:
+            return [{"name": m["name"], "gb": round(m.get("size", 0) / 1e9, 1)} for m in json.loads(r.read()).get("models", [])]
+    except Exception:
+        return []
+
+
+def _ours() -> bool:
+    p = START["proc"]
+    return p is not None and p.poll() is None
+
+
 def engine() -> dict:
     try:
         with _ollama("GET", "/api/version", timeout=2) as r:
-            return {"kind": "ollama", "running": True, "version": json.loads(r.read()).get("version", "")}
+            return {"kind": "ollama", "running": True, "version": json.loads(r.read()).get("version", ""),
+                    "loaded": _loaded(), "started_by_warden": _ours()}
     except Exception:
         pass
     if models.local_status()["reachable"]:
@@ -151,8 +166,8 @@ def start_ollama(wait: float = 20) -> dict:
     START.update(starting=True, error=None)
     try:
         with open(_log_path(), "ab") as log:
-            subprocess.Popen([binary, "serve"], stdout=log, stderr=log, stdin=subprocess.DEVNULL,
-                             env={**os.environ, "OLLAMA_HOST": hostport}, start_new_session=True)
+            START["proc"] = subprocess.Popen([binary, "serve"], stdout=log, stderr=log, stdin=subprocess.DEVNULL,
+                                             env={**os.environ, "OLLAMA_HOST": hostport}, start_new_session=True)
         end = time.time() + wait
         while time.time() < end:
             eng = engine()
@@ -165,6 +180,28 @@ def start_ollama(wait: float = 20) -> dict:
         raise RuntimeError(START["error"])
     finally:
         START["starting"] = False
+
+
+def stop_ollama() -> dict:
+    """Free the memory: unload every model, and stop Ollama itself if Warden started it.
+    An Ollama started elsewhere (its app, brew services) keeps running; quit it there."""
+    unloaded = []
+    for m in _loaded():
+        try:
+            _ollama("POST", "/api/generate", {"model": m["name"], "keep_alive": 0}, timeout=15).close()
+            unloaded.append(m["name"])
+        except Exception:
+            pass
+    stopped = False
+    if _ours():
+        START["proc"].terminate()
+        try:
+            START["proc"].wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            START["proc"].kill()
+        START["proc"], stopped = None, True
+    models._status_cache["v"] = None
+    return {"unloaded": unloaded, "stopped": stopped}
 
 
 def installed(kind: str) -> list[dict]:

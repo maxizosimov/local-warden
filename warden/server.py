@@ -408,17 +408,8 @@ def demo_unapproved_order():
 
 @app.post("/api/demo/clear", dependencies=[Depends(owner)])
 def demo_clear():
-    """Start the guided demo from a clean board. History stays in the ledger."""
-    for p in REGISTRY["demo-store"].products.values():
-        p.price = p.list_price
-    for a in hub._rows("SELECT id FROM approvals WHERE status='pending'"):
-        hub.decide(a["id"], False, actor="demo")
-    for o in hub._rows("SELECT id FROM orders WHERE status='handed_off'"):
-        hub.skip_handoff(o["id"], actor="demo")
-    for m in hub._rows("SELECT id FROM monitors WHERE status='active'"):
-        hub.cancel_monitor(m["id"])
-    hub.set_policy({"risk_level": 1, "pay_merchants": []}, actor="demo")
-    hub.log("demo_cleared", "demo")
+    """Start the guided demo from a clean board: no demo orders, watches or spend."""
+    hub.reset_demo()
     return {"ok": True}
 
 

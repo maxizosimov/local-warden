@@ -32,8 +32,8 @@ class Policy:
     risk_level: int = 1
     max_per_transaction: float = 300.0      # hard ceiling, never exceeded
     auto_approve_under: float = 50.0        # levels 2-3: auto only below this
-    daily_cap: float = 200.0
-    monthly_cap: float = 600.0
+    daily_cap: float = 500.0
+    monthly_cap: float = 1500.0
     allowed_merchants: list[str] = field(default_factory=lambda: ["demo-store"])
     blocked_merchants: list[str] = field(default_factory=list)
     blocked_categories: list[str] = field(

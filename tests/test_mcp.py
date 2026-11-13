@@ -47,7 +47,7 @@ def live(tmp_path, monkeypatch):
 def test_purchase_handoff_flow(live):
     m, server, owner, *_ = live
     owner("PUT", "/api/policy", {"risk_level": 2})
-    assert m.get_policy()["remaining"]["today"] == 200
+    assert m.get_policy()["remaining"]["today"] == 500
     sku = m.search_products("gel pens")[0]["sku"]
     r = m.request_purchase("User asked for pens for the office.", sku=sku)
     assert r["status"] == "handed_off" and "user pays" in r["next_step"].lower()

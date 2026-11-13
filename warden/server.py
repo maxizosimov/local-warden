@@ -41,8 +41,7 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(_app):
-    hub.start_background(float(os.getenv("WARDEN_TICK_SECONDS", "15")),
-                         jitter_demo=os.getenv("WARDEN_DEMO_JITTER", "1") == "1")
+    hub.start_background(float(os.getenv("WARDEN_TICK_SECONDS", "15")))
     hub.log("hub_started", "hub", risk_level=hub.policy.risk_level)
     if os.getenv("WARDEN_START_OLLAMA", "1") == "1" and local_models.engine().get("can_start"):
         threading.Thread(target=_start_ollama, args=("hub",), daemon=True).start()
@@ -162,6 +161,14 @@ def models_start():
     except RuntimeError as e:
         raise HTTPException(409, str(e))
     return {"status": "running", "version": eng.get("version", "")}
+
+
+@app.post("/api/models/stop", dependencies=[Depends(owner)])
+def models_stop():
+    r = local_models.stop_ollama()
+    hub.log("ollama_stopped" if r["stopped"] else "models_unloaded", "user", unloaded=r["unloaded"])
+    return {**r, "message": "Ollama stopped. Rules do its jobs until you start it." if r["stopped"] else
+            "Unloaded from memory. Ollama was started outside Warden, so quit it from its menu bar to stop it."}
 
 
 @app.post("/api/models/pull", dependencies=[Depends(owner)])

@@ -3,7 +3,6 @@
 without a real card or a real merchant account."""
 from __future__ import annotations
 
-import random
 import threading
 import time
 import uuid
@@ -64,16 +63,6 @@ class DemoStore(MerchantAdapter):
             p = self.products[sku]
             p.price = round(p.list_price * (1 - pct_off / 100), 2)
             return p
-
-    def jitter(self) -> None:
-        """Random small price moves + occasional sales, so monitors have something to watch."""
-        with self._lock:
-            for p in self.products.values():
-                r = random.random()
-                if r < 0.05:
-                    p.price = round(p.list_price * random.choice([0.7, 0.75, 0.8]), 2)
-                elif r < 0.25:
-                    p.price = p.list_price
 
     # --- orders ------------------------------------------------------------
     def place_order(self, sku: str, quantity: int, payment_token: str) -> OrderResult:

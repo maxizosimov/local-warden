@@ -135,3 +135,20 @@ def test_guided_demo_script(srv):
     assert post("/api/tasks", {"text": "buy 50 gel pens"})["status"] == "denied"
     c.put("/api/policy", json={"pay_merchants": ["demo-store"]}, headers=O)
     assert post("/api/tasks", {"text": "buy gel pens"})["status"] == "ordered"
+
+
+def test_order_confirmations_checked_against_approvals(srv):
+    server, c = srv
+    O = {"X-Warden-Owner": server.OWNER_TOKEN}
+    post = lambda path, body=None: c.post(path, json=body or {}, headers=O).json()
+    r = post("/api/tasks", {"text": "buy gel pens"})
+    r = post(f"/api/approvals/{r['approval_id']}/approve")
+    post(f"/api/orders/{r['order_id']}/paid", {"amount": r["expected_total"]})
+    r = post("/api/tasks", {"text": "buy coffee"})
+    r = post(f"/api/approvals/{r['approval_id']}/approve")
+    post(f"/api/orders/{r['order_id']}/paid", {"amount": 30})
+    assert post("/api/demo/unapproved-order")["result"] == "unapproved"
+    got = {x["item"]: x for x in c.get("/api/state", headers=O).json()["confirmations"]}
+    assert got["Gel Pens, 24 Pack"]["result"] == "matched"
+    assert got["Coffee Beans 2lb"]["result"] == "different" and "$30.00" in got["Coffee Beans 2lb"]["note"]
+    assert got["Printer Ink Combo Pack"]["result"] == "unapproved" and got["Printer Ink Combo Pack"]["order_id"] is None

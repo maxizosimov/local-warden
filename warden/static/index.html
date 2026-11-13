@@ -127,6 +127,9 @@ button{font:500 12.5px Inter,sans-serif;cursor:pointer;border-radius:7px;transit
 .b.as_proposed{color:var(--up);background:var(--up-bg);border-color:transparent}
 .b.changed{color:var(--amber);background:var(--amber-bg);border-color:transparent}
 .b.skipped{color:var(--mute)}
+.b.matched{color:var(--up);background:var(--up-bg);border-color:transparent}
+.b.different{color:var(--amber);background:var(--amber-bg);border-color:transparent}
+.b.unapproved{color:var(--down);background:var(--down-bg);border-color:transparent}
 
 /* tables */
 table{width:100%;border-collapse:collapse}
@@ -373,6 +376,12 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
       <div class="scroll"><table id="orders"></table></div>
     </div>
     <div class="panel">
+      <div class="ph"><h3>Order confirmations</h3><span class="count" id="confCount">0</span>
+        <span class="right"><span class="sub">store emails, checked against what you approved</span>
+        <button class="btn ghost sm" type="button" id="rogue" title="Demo: a store emails about an order Warden never saw">Simulate unapproved order</button></span></div>
+      <div class="scroll"><table id="confs"></table></div>
+    </div>
+    <div class="panel">
       <div class="ph"><h3>Track record</h3><span class="right sub">proposals you paid</span></div>
       <div id="track"></div>
     </div>
@@ -523,6 +532,7 @@ const toast = msg => { const t=$("#toast"); t.textContent=msg; t.classList.add("
 const label = s => String(s||"").replace(/_/g," ");
 
 $("#gateForm").onsubmit = e => { e.preventDefault(); setOwner($("#gateTok").value.trim()); refresh(); loadCatalog(); loadModels(); };
+$("#rogue").onclick = async () => { try { const r = await api("/api/demo/unapproved-order",{method:"POST"}); toast(`Flagged: ${r.note}`); } catch(err){ toast(err.message); } refresh(); };
 $("#csv").onclick = async () => { const r = await raw("/api/export/orders.csv"); if (!r.ok) return toast("Export failed");
   const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = "warden-orders.csv"; a.click(); };
 
@@ -711,6 +721,7 @@ function evText(e){
     case "handoff_skipped": return `order #${d.order_id} skipped · ${money(d.expected_total)} released`;
     case "account_added": return `${d.type} added · ${d.name} (masked)`;
     case "account_removed": return `${d.type} removed · ${d.name}`;
+    case "confirmation_received": return `${d.item} ×${d.qty} · ${money(d.total)} · ${d.merchant_order_id} → ${d.result}. ${d.note}`;
     case "order_status": return `order #${d.order_id}: ${label(d.was)} → ${label(d.status)}`;
     default: return JSON.stringify(d).slice(0,160);
   }
@@ -748,6 +759,10 @@ function latestLine(e){
     case "approval_rejected": return ["", `You rejected a purchase`, e.ts];
     case "notify": return d.title==="Price alert" ? ["amber", `Price alert: ${esc(d.body)}`, e.ts] : null;
     case "monitor_created": return ["", `Watching: <b>${esc(d.name)}</b>`, e.ts];
+    case "confirmation_received":
+      if (d.result==="unapproved") return ["down", `Not approved by you: <b>${esc(d.item)}</b> ${money(d.total)} at ${esc(d.merchant)}. Warden never saw this order`, e.ts];
+      if (d.result==="different") return ["amber", `Store charged differently: <b>${esc(d.item)}</b>. ${esc(d.note)}`, e.ts];
+      return ["up", `Store confirmed <b>${esc(d.item)}</b> ${money(d.total)}, matches your approval`, e.ts];
     default: return null;
   }
 }
@@ -837,6 +852,12 @@ async function refresh(){
       <td class="r" style="white-space:nowrap">${x.status==="active"?`${saleBtn(x)} <button class="btn ghost sm" data-unwatch="${x.id}">Stop</button>`:""}</td></tr>`).join("") + `</tbody>`
     : `<tbody><tr><td class="empty">Nothing watched yet. Add an item above.</td></tr></tbody>`;
 
+  const CR = {matched:"matches", different:"different", unapproved:"not approved"};
+  $("#confCount").textContent = S.confirmations.length;
+  $("#confs").innerHTML = S.confirmations.length ? `<thead><tr><th>Item</th><th class="r">Charged</th><th>Check</th></tr></thead><tbody>` +
+    S.confirmations.map(c=>`<tr><td><span class="name">${esc(c.item)}</span> <span class="sub">×${c.qty}</span><div class="sub mono">${esc(c.merchant)} · ${esc(c.merchant_order_id)} · ${ago(c.ts)} ago</div></td>
+      <td class="r num">${money(c.total)}</td><td><span class="b ${c.result}">${CR[c.result]||esc(c.result)}</span><div class="sub">${esc(c.note)}</div></td></tr>`).join("") + `</tbody>`
+    : `<tbody><tr><td class="empty">No confirmations yet. When a store emails about an order, Warden checks it against what you approved.</td></tr></tbody>`;
   $("#ordCount").textContent = S.orders.length;
   $("#orders").innerHTML = S.orders.length ? `<thead><tr><th>Item</th><th class="r">Amount</th><th>Merchant</th><th>Authorized by</th><th>Fulfillment</th><th>Status</th></tr></thead><tbody>` +
     S.orders.map(o=>{ const i=STAGES.indexOf(o.status);
@@ -944,6 +965,10 @@ const TOUR = [
    go:"Let Warden pay at demo-store", run:async()=>{ await tPay(); await api("/api/policy",{method:"PUT",body:{pay_merchants:["demo-store"]}});
      const r = await api("/api/tasks",{method:"POST",body:{text:"buy gel pens"}}); showResult(r); await refresh();
      return r.status==="ordered" ? `Bought by Warden with a single-use card: order ${r.merchant_order_id}. You didn't touch anything.` : (r.message || label(r.status)); }},
+  {v:"orders", el:"#confs", t:"Check what the store says",
+   d:"Stores email a confirmation for every order. Warden checks each one against what you approved, so the orders above all match. Now a store emails about an order nobody approved.",
+   go:"Simulate an unapproved order", run:async()=>{ const r = await api("/api/demo/unapproved-order",{method:"POST"}); await refresh();
+     return `Flagged in red. ${r.note} An agent that buys around Warden still gets caught.`; }},
   {v:"agents", el:"#mm", t:"The local model",
    d:"A small model runs on this computer through Ollama. It reads requests and picks items, and rules take over if it's off. It never approves or pays. Start, stop and download models here.",
    go:"Test the model", run:async()=>{ await loadModels(); if (!MM || !MM.engine.running) return "Ollama is off, so rules are doing these jobs. Press Start Ollama to turn it on.";

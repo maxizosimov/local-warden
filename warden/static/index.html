@@ -139,9 +139,7 @@ th.r,td.r{text-align:right}
 .sub{font-size:11.5px;color:var(--mute)}
 .name{color:var(--ink);font-weight:500}
 .up{color:var(--up)}.down{color:var(--down)}
-.chg{font:12px var(--monof);font-variant-numeric:tabular-nums}
 .steps{display:flex;gap:3px}.steps i{width:16px;height:4px;border-radius:2px;background:var(--line2)}.steps i.on{background:var(--up)}
-svg.spark{width:96px;height:26px;display:block}
 
 /* approvals */
 .ap{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px;border-bottom:1px solid var(--line);position:relative}
@@ -227,6 +225,12 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .lbl{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em}
 .seg .wf{padding:0}.addf input{flex:1 1 140px;min-width:0}
 .rolebox .mini{background:transparent}
+.lt{display:grid;grid-template-columns:8px 1fr auto;gap:10px;align-items:baseline;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12.5px}
+.lt:last-child{border-bottom:0}.lt i{width:7px;height:7px;border-radius:50%;background:var(--faint);transform:translateY(-1px)}
+.lt.up i{background:var(--up)}.lt.amber i{background:var(--amber)}.lt.down i{background:var(--down)}.lt.agent i{background:var(--agent)}
+.lt .t{font:11px var(--monof);color:var(--faint);white-space:nowrap}
+.out{font-size:12px;margin-top:2px}.out.up{color:var(--up)}.out.amber{color:var(--amber)}.out.down{color:var(--down)}.out.agent{color:var(--agent)}
+.trace .x{margin-left:auto;background:none;border:0;color:var(--mute);font-size:16px;line-height:1;padding:0 2px}.trace .x:hover{color:var(--ink)}
 /* token gate */
 .gate{position:fixed;inset:0;z-index:20;display:none;place-items:center;background:rgba(9,9,11,.92);padding:16px}
 .gate.show{display:grid}
@@ -279,8 +283,8 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
     <a href="#watch" data-v="watch">Watchlist</a>
     <a href="#orders" data-v="orders">Orders</a>
     <a href="#controls" data-v="controls">Controls</a>
+    <a href="#agents" data-v="agents">Agents</a>
     <a href="#accounts" data-v="accounts">Accounts</a>
-    <a href="#settings" data-v="settings">Settings</a>
     <a href="#activity" data-v="activity">Activity</a>
   </nav>
   <div class="status" id="ledger"></div>
@@ -318,12 +322,12 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
         <div class="panel">
           <div class="ph"><h3>Watching</h3><span class="count" id="monCount">0</span><span class="right sub">price watches</span></div>
           <div id="watchMini"></div>
-          <a class="more" href="#watch">Watchlist and sale simulator →</a>
+          <a class="more" href="#watch">Add or manage watches →</a>
         </div>
         <div class="panel">
-          <div class="ph"><h3>Recent orders</h3></div>
-          <div id="ordersMini"></div>
-          <a class="more" href="#orders">All orders →</a>
+          <div class="ph"><h3>Latest</h3><span class="right sub">what just happened</span></div>
+          <div id="latest"></div>
+          <a class="more" href="#activity">Full log →</a>
         </div>
       </div>
     </div>
@@ -342,10 +346,6 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
       </form>
       <div class="wmsg" id="wMsg"></div>
       <div class="scroll" style="border-top:1px solid var(--line)"><table id="monitors"></table></div>
-    </div>
-    <div class="panel">
-      <div class="ph"><h3>Market simulator</h3><span class="b agent">demo-store</span><span class="right sub">put items on sale to fire watches</span></div>
-      <div class="scroll"><table id="catalog"></table></div>
     </div>
   </div></section>
 
@@ -397,13 +397,6 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
   <section class="view" data-view="accounts"><div class="settings">
     <div class="note">Demo: Warden keeps only names, logins and the last 4 digits. Passwords and full numbers never leave this page.</div>
     <div class="seg">
-      <div><h2>Agent access</h2><p class="hint">Agents connect with the agent token (<span class="mono">data/agent_token</span>, or <span class="mono">./mcp.sh</span>). They can propose purchases and set watches. They can't approve, pay, change your rules or see this page.</p></div>
-      <div class="body">
-        <div class="lbl">Requests from agents</div><div class="rolebox" id="agentReqs"></div>
-        <div class="lbl">Went through without asking you</div><div class="rolebox" id="autoReqs"></div>
-      </div>
-    </div>
-    <div class="seg">
       <div><h2>Store logins</h2><p class="hint">Accounts Warden can check out with. Agents never get these.</p></div>
       <div class="body">
         <div class="rolebox" id="logins"></div>
@@ -429,12 +422,19 @@ details.sim>summary{list-style:none;cursor:pointer}details.sim>summary::-webkit-
     </div>
   </div></section>
 
-  <section class="view" data-view="settings"><div class="settings">
+  <section class="view" data-view="agents"><div class="settings">
     <div class="seg">
-      <div><h2>Models</h2><p class="hint">Small jobs run on your local model, with rules as backup. Deciding and paying never use a model.</p></div>
+      <div><h2>Local model</h2><p class="hint">Runs on this computer and handles small jobs, with rules as backup. Start, stop and download models here. Deciding and paying never use a model.</p></div>
       <div class="body">
         <div class="sub" id="localState"></div>
         <div class="rolebox"><div class="mm" id="mm"></div><div id="roles"></div></div>
+      </div>
+    </div>
+    <div class="seg">
+      <div><h2>Connected agents</h2><p class="hint">Agents connect with the agent token (<span class="mono">data/agent_token</span>, or <span class="mono">./mcp.sh</span>). They can propose purchases and set watches. They can't approve, pay, change your rules or see this page.</p></div>
+      <div class="body">
+        <div class="lbl">Requests from agents</div><div class="rolebox" id="agentReqs"></div>
+        <div class="lbl">Went through without asking you</div><div class="rolebox" id="autoReqs"></div>
       </div>
     </div>
     <form class="pform stack" style="gap:16px">
@@ -476,13 +476,14 @@ const setOwner = t => { OWNER = t; try { localStorage.setItem("warden_owner", t)
 const takeHashToken = () => { const t = new URLSearchParams(location.hash.slice(1)).get("owner");
   if (t){ setOwner(t); history.replaceState(null, "", location.pathname); } return !!t; };
 takeHashToken();
-const VIEWS = ["home","watch","orders","controls","accounts","settings","activity"];
+const VIEWS = ["home","watch","orders","controls","agents","accounts","activity"];
 function route(){
   const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "home";
   document.querySelectorAll(".view").forEach(el => el.classList.toggle("on", el.dataset.view === v));
   document.querySelectorAll("#tabs a").forEach(el => el.classList.toggle("on", el.dataset.v === v));
 }
 route();
+addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });  // back from the store's checkout tab
 addEventListener("hashchange", () => { if (takeHashToken()){ refresh(); loadCatalog(); loadModels(); } route(); });
 const raw = (path, opts={}) => fetch(path, {...opts, headers:{"Content-Type":"application/json","X-Warden-Owner":OWNER},
   body: opts.body ? JSON.stringify(opts.body) : undefined});
@@ -563,12 +564,13 @@ function showResult(r){
   if (r.note) steps.push(["warn","store",esc(r.note)]);
   if (r.product) steps.push(["done","pick",`${esc(r.product.name)} <span class="num">${money(r.product.price)}</span>${r.picked_by?by(r.picked_by):""}`]);
   if (dec) steps.push([dec.outcome==="allow"?"done":dec.outcome==="deny"?"bad":"warn","policy",`<span class="b ${dec.outcome}">${label(dec.outcome)}</span> ${dec.reasons.map(esc).join(" ")}${by("policy engine")}`]);
-  if (r.status==="awaiting_approval") steps.push(["warn","you","approve it under Needs you"]);
-  if (r.status==="handed_off") steps.push(["done","you",`pay at the store · <span class="num">${money(r.expected_total)}</span> · no card used <a class="btn ghost sm" style="margin-left:6px" href="${esc(r.cart_url)}" target="_blank" rel="noopener">Open cart</a>`]);
+  if (r.status==="awaiting_approval") steps.push(["warn","you","approve it under Needs you, below"]);
+  if (r.status==="handed_off") steps.push(["done","you","pay for it under Needs you, below"]);
+  if (r.status==="monitoring") steps.push(["done","watch","added to Watching · it fires when the price is right"]);
   if (r.status==="ordered") steps.push(["done","execute",`single-use token → order <span class="mono">${esc(r.merchant_order_id)}</span>`]);
   if (r.sent_to_frontier) steps.push(["done","research",`sent off-device (redacted): <span class="mono">"${esc(r.sent_to_frontier)}"</span>`]);
   if (r.status==="researched") steps.push(["done","you","pick a match below; buying still goes through policy"]);
-  let h = `<div class="head"><span class="b ${r.status}">${label(r.status)}</span><span class="msg">${esc(r.message||"")}</span></div>`;
+  let h = `<div class="head"><span class="b ${r.status}">${label(r.status)}</span><span class="msg">${esc(r.message||"")}</span><button class="x" type="button" data-close="1" aria-label="Close">×</button></div>`;
   h += steps.map(([c,k,d])=>`<div class="step"><span class="ic ${c}"></span><span class="k">${k}</span><span class="d">${d}</span></div>`).join("");
   if (r.answer) h += `<pre>${esc(r.answer)}</pre>`;
   const list = r.matches || r.candidates;
@@ -578,17 +580,16 @@ function showResult(r){
 }
 
 document.addEventListener("click", async e => {
-  const b = e.target.closest("[data-buy],[data-ap],[data-sale],[data-watch],[data-unwatch],[data-paid],[data-skip],[data-trust]"); if (!b) return;
+  const b = e.target.closest("[data-buy],[data-ap],[data-sale],[data-unwatch],[data-paid],[data-skip],[data-trust],[data-close]"); if (!b) return;
+  if (b.dataset.ap || b.dataset.paid || b.dataset.skip || b.dataset.close) $("#result").className = "trace";
   try {
     if (b.dataset.buy){ const r = await api("/api/buy",{method:"POST",body:{merchant:"demo-store",sku:b.dataset.buy,quantity:1}}); toast(r.message||r.status); }
     if (b.dataset.ap){ const [id,act]=b.dataset.ap.split(":"); const r = await api(`/api/approvals/${id}/${act}`,{method:"POST"}); toast(r.message||label(r.status)); }
     if (b.dataset.sale){ const [sku,pct]=b.dataset.sale.split(":"); const r = await api("/api/demo/sale",{method:"POST",body:{sku,pct_off:+pct}});
-      toast(`${r.product.name} → ${money(r.product.price)}` + (r.fired.length?` · ${r.fired.length} monitor fired`:"")); loadCatalog(); }
-    if (b.dataset.watch){ const pct = prompt("Trigger at what % off?", "20"); if(pct==null) return;
-      const act = confirm("OK = buy automatically (still subject to policy)\nCancel = notify only") ? "buy":"notify";
-      await api("/api/monitors",{method:"POST",body:{merchant:"demo-store",sku:b.dataset.watch,min_discount_pct:+pct,action:act}}); toast("Added to watchlist"); }
-    if (b.dataset.paid){ const amt = +$(`#amt-${b.dataset.paid}`).value;
-      const r = await api(`/api/orders/${b.dataset.paid}/paid`,{method:"POST",body:{amount:amt}}); toast(r.message||r.status); }
+      toast(r.fired.length ? r.fired.map(f=>`${f.name}: ${f.message}`).join(" · ") : `${r.product.name} is now ${money(r.product.price)}`); }
+    if (b.dataset.paid){ const o = S.orders.find(o=>o.id===+b.dataset.paid);
+      const amt = prompt(`What were you charged for ${o.item}?`, Number(o.expected_total).toFixed(2)); if (amt == null) return;
+      const r = await api(`/api/orders/${b.dataset.paid}/paid`,{method:"POST",body:{amount:+amt}}); toast(r.message||r.status); }
     if (b.dataset.skip){ const r = await api(`/api/orders/${b.dataset.skip}/skip`,{method:"POST"}); toast(r.message||r.status); }
     if (b.dataset.trust){ const pm = [...new Set([...(S.policy.pay_merchants||[]), b.dataset.trust])];
       await api("/api/policy",{method:"PUT",body:{pay_merchants:pm}}); toast(`Warden now pays at ${b.dataset.trust} (simulated)`); }
@@ -610,11 +611,14 @@ function renderModels(){
                            : `<span class="mono" style="font-size:12px">${e.running?"no models yet":"no local model"}</span>`;
   h += `<span class="grow"></span>`;
   const starting = mmStarting || e.starting;
-  if (!e.running && e.can_start && !mmOpen) h += starting ? `<span class="sub">Starting Ollama…</span>` : `<button class="btn ok sm" data-mstart="1">${e.start_error?"Try again":"Start Ollama"}</button>`;
+  if (!e.running && e.can_start) h += starting ? `<span class="sub">Starting Ollama…</span>` : `<button class="btn ok sm" data-mstart="1">${e.start_error?"Try again":"Start Ollama"}</button>`;
   if (e.running && MM.installed.length) h += `<button class="btn ghost sm" data-mtest="1" ${mmTesting?"disabled":""}>${mmTesting?"Testing…":"Test"}</button>`;
+  if (e.kind === "ollama") h += `<button class="btn no sm" data-mstop="1">Stop</button>`;
   h += `<button class="btn ghost sm" data-mtoggle="1">${mmOpen?"Done":"Manage"}</button></div>`;
   if (mmTest) h += `<div class="mtest">` + mmTest.results.map(r=>`<div><span class="${r.ok?"up":"down"}">${r.ok?"✓":"✗"}</span><span>${esc(r.job)} <span class="sub">→ ${esc(r.answer)}</span></span><span class="s">${r.seconds}s</span></div>`).join("") +
     `<div class="sub" style="display:block">${mmTest.results.every(r=>r.ok)?`${esc(mmTest.model)} handles all of Warden's jobs.`:"✗ means that job falls back to rules with this model."}</div></div>`;
+  if (e.kind === "ollama") h += `<div class="mmnote sub">${e.loaded.length ? `In memory: ${e.loaded.map(m=>`${esc(m.name)} (${gb(m.gb)})`).join(", ")}` : "Running, nothing in memory. The model loads on the next request."}</div>`;
+  else if (!e.running) h += `<div class="mmnote sub">Stopped. Rules do the model's jobs until you start it.</div>`;
   if (!mmOpen){ if (pulls.length) h += `<div class="mmnote">Downloading ${pulls.map(([n,p])=>`${esc(n)} ${p.total?Math.round(p.completed/p.total*100)+"%":""}`).join(", ")}…</div>`; $("#mm").innerHTML = h; return; }
 
   h += `<div class="mmnote">${esc(MM.hardware.label)} · models up to about ${gb(MM.hardware.budget_gb)} fit</div>`;
@@ -637,10 +641,11 @@ function renderModels(){
   $("#mm").innerHTML = h;
 }
 $("#mm").addEventListener("click", async ev => {
-  const b = ev.target.closest("[data-mtoggle],[data-mtest],[data-mpull],[data-muse],[data-mdel],[data-mstart]"); if (!b) return;
+  const b = ev.target.closest("[data-mtoggle],[data-mtest],[data-mpull],[data-muse],[data-mdel],[data-mstart],[data-mstop]"); if (!b) return;
   try {
     if (b.dataset.mtoggle){ mmOpen = !mmOpen; renderModels(); }
     if (b.dataset.mstart){ mmStarting = true; renderModels(); const r = await api("/api/models/start",{method:"POST"}); mmStarting = false; toast(`Ollama ${r.version||""} is running`); }
+    if (b.dataset.mstop){ const r = await api("/api/models/stop",{method:"POST"}); mmTest = null; toast(r.message); }
     if (b.dataset.mtest){ mmTesting = true; mmTest = null; renderModels(); mmTest = await api("/api/models/test",{method:"POST"}); mmTesting = false; }
     if (b.dataset.mpull){ await api("/api/models/pull",{method:"POST",body:{name:b.dataset.mpull}}); toast(`Downloading ${b.dataset.mpull}`); }
     if (b.dataset.muse){ await api("/api/models/use",{method:"POST",body:{name:b.dataset.muse}}); mmTest = null; toast(`Now using ${b.dataset.muse}`); }
@@ -661,16 +666,6 @@ $("#mm").addEventListener("submit", async ev => {
 });
 setInterval(() => { if (mmOpen || (MM && (MM.engine.starting || Object.values(MM.pulls).some(p=>!["success","error"].includes(p.status))))) loadModels(); }, 1500);
 
-function spark(hist){
-  if (!hist || hist.length < 2) return `<svg class="spark" viewBox="0 0 96 26"><line x1="1" y1="13" x2="95" y2="13" stroke="var(--line2)" stroke-dasharray="2 3"/></svg>`;
-  const ys = hist.map(h=>h[1]), lo=Math.min(...ys), hi=Math.max(...ys), span = hi-lo || 1;
-  const col = ys[ys.length-1] < ys[0] ? "var(--up)" : ys[ys.length-1] > ys[0] ? "var(--down)" : "var(--mute)";
-  const pts = ys.map((y,i)=>[(i/(ys.length-1)*94+1), (23-(y-lo)/span*20)]);
-  const line = pts.map(p=>p.map(v=>v.toFixed(1)).join(",")).join(" ");
-  const id = "g"+Math.random().toString(36).slice(2,7);
-  return `<svg class="spark" viewBox="0 0 96 26"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".25"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
-    <polygon points="1,26 ${line} 95,26" fill="url(#${id})"/><polyline points="${line}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
-}
 const STAGES = ["placed","processing","shipped","out_for_delivery","delivered"];
 
 function evText(e){
@@ -694,6 +689,42 @@ function evText(e){
     case "account_removed": return `${d.type} removed · ${d.name}`;
     case "order_status": return `order #${d.order_id}: ${label(d.was)} → ${label(d.status)}`;
     default: return JSON.stringify(d).slice(0,160);
+  }
+}
+
+// Watches: what fires them, the demo sale that would, and what happened when they fired.
+const target = x => [x.min_discount_pct?`at ${x.min_discount_pct}% off`:"", x.max_price?`under ${money(x.max_price)}`:""].filter(Boolean).join(" and ");
+function saleBtn(x){
+  const list = (CAT[x.sku]||{}).list_price || x.last_price; if (!list) return "";
+  const pct = Math.max(x.min_discount_pct||0, x.max_price ? Math.ceil((1 - x.max_price/list)*100) : 0);
+  return pct > 0 && pct < 95 ? `<button class="btn ghost sm" data-sale="${esc(x.sku)}:${pct}" title="Demo: put it on sale so the watch fires">Simulate ${pct}% sale</button>` : "";
+}
+const OUT = {awaiting_approval:["amber","Needs your OK"], handed_off:["agent","Ready to pay"], ordered:["up","Bought"],
+  denied:["down","Blocked"], notified:["up","Told you"], aborted:["down","Not bought"], failed:["down","Failed"]};
+function watchOutcome(x, elsewhere){
+  if (!x.outcome) return x.status==="triggered" ? `<div class="out amber">Fired</div>` : "";
+  const o = JSON.parse(x.outcome), [tone, head] = OUT[o.status] || ["", label(o.status)];
+  const why = o.status==="denied" ? o.message.replace(/^Blocked by policy:\s*/,"") : "";
+  const go = elsewhere && ["awaiting_approval","handed_off"].includes(o.status) ? ` · <a href="#home">on Home →</a>` : "";
+  return `<div class="out ${tone}">${head}${why?`: ${esc(why)}`:""}${go}</div>`;
+}
+// The Home feed: the few events a person cares about, in plain words.
+function latestLine(e){
+  const d = e.data, nm = id => (S.orders.find(o=>o.id===id)||{}).item || "order";
+  switch(e.kind){
+    case "monitor_triggered": return ["amber", `Watch fired: <b>${esc((S.monitors.find(m=>m.id===d.monitor_id)||{}).name||"item")}</b> hit ${money(d.price)} (${d.discount}% off)`, e.ts];
+    case "policy_decision":
+      if (d.decision.outcome==="deny") return ["down", `Blocked: <b>${esc(d.intent.item)}</b> ${money(d.total)}. ${esc(d.decision.reasons.join(" "))}`, e.ts];
+      if (d.decision.outcome==="require_approval") return ["amber", `Needs your OK: <b>${esc(d.intent.item)}</b> ${money(d.total)}`, e.ts];
+      return null;
+    case "handoff_created": return ["agent", `Ready to pay: <b>${esc(d.item)}</b> ${money(d.expected_total)}`, e.ts];
+    case "handoff_paid": return ["up", `Paid: <b>${esc(nm(d.order_id))}</b> ${money(d.paid_total)}`, e.ts];
+    case "order_placed": return ["up", `Bought: <b>${esc(d.item)}</b> ${money(d.total)}, paid by Warden with a single-use card`, e.ts];
+    case "handoff_skipped": return ["", `Skipped: <b>${esc(nm(d.order_id))}</b>`, e.ts];
+    case "approval_rejected": return ["", `You rejected a purchase`, e.ts];
+    case "notify": return d.title==="Price alert" ? ["amber", `Price alert: ${esc(d.body)}`, e.ts] : null;
+    case "monitor_created": return ["", `Watching: <b>${esc(d.name)}</b>`, e.ts];
+    default: return null;
   }
 }
 
@@ -732,10 +763,9 @@ async function refresh(){
       <div class="sub">${esc(o.merchant)}${o.requested_merchant&&o.requested_merchant!==o.merchant?` · requested ${esc(o.requested_merchant)}`:""} · ${esc(o.approved_by.startsWith("policy")?"agent · policy":"approved by "+o.approved_by)} · ${ago(o.ts)} ago</div>
       <ul class="why" style="margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--mute)">${JSON.parse(o.rationale||"[]").map(r=>`<li>→ ${esc(r)}</li>`).join("")}</ul></div>
       <div><div class="amt">${money(o.expected_total)}</div><div class="acts">
-        <a class="btn ghost sm" href="${esc(o.cart_url)}" target="_blank" rel="noopener">${/^https?:/.test(o.cart_url||"")?"Open "+esc(o.merchant)+" ↗":"Open cart"}</a>
         <button class="btn no sm" data-skip="${o.id}">Skip</button>
-        <input id="amt-${o.id}" type="number" step="0.01" value="${Number(o.expected_total).toFixed(2)}" aria-label="Amount charged">
-        <button class="btn ok sm" data-paid="${o.id}">Mark paid</button></div></div></div>`);
+        <button class="btn ghost sm" data-paid="${o.id}">Paid elsewhere</button>
+        <a class="btn ok sm" href="${esc(o.cart_url)}" target="_blank" rel="noopener">Pay at ${esc(o.merchant)} ↗</a></div></div></div>`);
   $("#inCount").textContent = pend.length + handoffs.length;
   $("#inbox").innerHTML = approvalCards.concat(payCards).join("") ||
     `<div class="empty">Nothing needs you. Purchases outside your risk level wait here for approval; allowed ones come back ready for you to pay.</div>`;
@@ -770,26 +800,18 @@ async function refresh(){
 
 
   $("#monCount").textContent = active.length;
-  $("#watchMini").innerHTML = active.map(x=>`<div class="mini"><div><span class="name">${esc(x.name)}</span>
-      <div class="sub">${x.min_discount_pct?`at ${x.min_discount_pct}% off`:""}${x.max_price?` under ${money(x.max_price)}`:""} · then ${esc(x.action)}</div></div>
-      <div class="r num">${x.last_price!=null?money(x.last_price):`<span class="sub">checking…</span>`}</div></div>`).join("") ||
+  $("#watchMini").innerHTML = S.monitors.filter(x=>x.status==="active"||Date.now()/1000-(x.triggered_ts||0)<3600).slice(0,6).map(x=>
+      `<div class="mini"><div><span class="name">${esc(x.name)}</span><div class="sub">${target(x)} · then ${x.action==="buy"?"buy":"tell you"}</div>${watchOutcome(x)}</div>
+      <div class="r">${x.status==="active"?saleBtn(x):`<span class="num sub">${money(x.last_price)}</span>`}</div></div>`).join("") ||
     `<div class="empty">Nothing watched. Try “buy the propane grill when it's 25% off”.</div>`;
-  $("#ordersMini").innerHTML = S.orders.filter(o=>o.status!=="handed_off").slice(0,4).map(o=>`<div class="mini"><div><span class="name">${esc(o.item)}</span>
-      <div class="sub">${esc(o.merchant)} · ${ago(o.ts)} ago</div></div>
-      <div class="r"><div class="num">${money(o.total)}</div><span class="b ${o.status}">${label(o.status)}</span></div></div>`).join("") ||
-    `<div class="empty">No orders yet.</div>`;
-  $("#monitors").innerHTML = S.monitors.length ? `<thead><tr><th>Item</th><th class="r">Last</th><th class="r">Δ vs list</th><th>Trend</th><th>Target</th><th>Then</th><th>Status</th><th></th></tr></thead><tbody>` +
-    S.monitors.map(x=>{ const hist=JSON.parse(x.history||"[]"); const first = hist.length? Math.max(...hist.map(h=>h[1])) : null;
-      const chg = (first && x.last_price!=null) ? (x.last_price/first-1)*100 : 0;
-      return `<tr><td><span class="name">${esc(x.name)}</span><div class="sub mono">${esc(x.merchant)} · ${esc(x.sku.slice(0,28))}</div></td>
-      <td class="r num">${money(x.last_price)}</td>
-      <td class="r chg ${chg<0?"up":chg>0?"down":""}">${chg?(chg>0?"+":"")+chg.toFixed(1)+"%":"0.0%"}</td>
-      <td>${spark(hist)}</td>
-      <td class="mono" style="font-size:12px;white-space:nowrap">${x.min_discount_pct?`≥${x.min_discount_pct}% off`:""}${x.max_price?` ≤${money(x.max_price)}`:""}</td>
-      <td><span class="b ${x.action==="buy"?"agent":""}">${esc(x.action)}</span></td>
-      <td><span class="b ${x.status}">${esc(x.status)}</span></td>
-      <td class="r">${x.status==="active"?`<button class="btn ghost sm" data-unwatch="${x.id}">Stop</button>`:""}</td></tr>`; }).join("") + `</tbody>`
-    : `<tbody><tr><td class="empty">Empty watchlist. Try “buy the propane grill when it's 25% off”.</td></tr></tbody>`;
+  $("#monitors").innerHTML = S.monitors.length ? `<thead><tr><th>Item</th><th class="r">Price</th><th>Fires</th><th>Then</th><th>What happened</th><th></th></tr></thead><tbody>` +
+    S.monitors.map(x=>`<tr><td><span class="name">${esc(x.name)}</span><div class="sub">${esc(x.merchant)} · since ${ago(x.ts)} ago</div></td>
+      <td class="r num">${x.last_price!=null?money(x.last_price):`<span class="sub">checking…</span>`}</td>
+      <td class="sub" style="white-space:nowrap">${target(x)}</td>
+      <td class="sub">${x.action==="buy"?"buy":"tell you"}</td>
+      <td>${x.status==="active"?`<span class="sub">watching</span>`:x.status==="cancelled"?`<span class="sub">stopped</span>`:watchOutcome(x, true)}</td>
+      <td class="r" style="white-space:nowrap">${x.status==="active"?`${saleBtn(x)} <button class="btn ghost sm" data-unwatch="${x.id}">Stop</button>`:""}</td></tr>`).join("") + `</tbody>`
+    : `<tbody><tr><td class="empty">Nothing watched yet. Add an item above.</td></tr></tbody>`;
 
   $("#ordCount").textContent = S.orders.length;
   $("#orders").innerHTML = S.orders.length ? `<thead><tr><th>Item</th><th class="r">Amount</th><th>Merchant</th><th>Authorized by</th><th>Fulfillment</th><th>Status</th></tr></thead><tbody>` +
@@ -802,8 +824,11 @@ async function refresh(){
     : `<tbody><tr><td class="empty">No transactions yet.</td></tr></tbody>`;
 
   const ev = await api("/api/ledger?limit=60");
+  const L8 = ev.map(latestLine).filter(Boolean).slice(0,8);
+  $("#latest").innerHTML = L8.map(([tone,txt,ts])=>`<div class="lt ${tone}"><i></i><span>${txt}</span><span class="t">${ago(ts)}</span></div>`).join("") ||
+    `<div class="empty">Nothing yet. Run a request or simulate a sale on a watch.</div>`;
   const reqs = ev.filter(e=>e.kind==="intent_received").slice(0,5);
-  $("#agentReqs").innerHTML = reqs.map(e=>`<div class="mini"><div><span class="name">${esc(e.data.intent.name||CAT[e.data.intent.sku]||e.data.intent.sku||e.data.intent.url||"request")}</span>
+  $("#agentReqs").innerHTML = reqs.map(e=>`<div class="mini"><div><span class="name">${esc(e.data.intent.name||(CAT[e.data.intent.sku]||{}).name||e.data.intent.sku||e.data.intent.url||"request")}</span>
       <div class="sub">${esc(e.actor)}${e.data.intent.reason?` · "${esc(e.data.intent.reason)}"`:""}</div></div><div class="r sub">${ago(e.ts)} ago</div></div>`).join("") ||
     `<div class="empty">No agent requests yet. Connect one with <span class="mono">./mcp.sh</span>.</div>`;
   const auto = S.orders.filter(o=>o.approved_by.startsWith("policy")).slice(0,5).map(o=>`<div class="mini"><div><span class="name">${esc(o.item)}</span>
@@ -819,11 +844,7 @@ async function refresh(){
 
 const CAT = {};
 async function loadCatalog(){
-  const items = await api("/api/catalog"); items.forEach(p => CAT[p.sku] = p.name);
-  $("#catalog").innerHTML = `<thead><tr><th>Item</th><th>Category</th><th class="r">Price</th><th class="r">Δ</th><th class="r">Simulate</th></tr></thead><tbody>` + items.map(p=>`<tr>
-    <td><span class="name">${esc(p.name)}</span><div class="sub mono">${esc(p.sku)}</div></td><td class="sub">${label(p.category)}</td>
-    <td class="r num">${money(p.price)}</td><td class="r chg ${p.discount_pct>0?"up":""}">${p.discount_pct>0?"−"+p.discount_pct+"%":"—"}</td>
-    <td class="r" style="white-space:nowrap"><button class="btn ghost sm" data-sale="${p.sku}:30">−30%</button> <button class="btn ghost sm" data-sale="${p.sku}:0">Reset</button> <button class="btn ghost sm" data-watch="${p.sku}">Watch</button></td></tr>`).join("") + `</tbody>`;
+  try { (await api("/api/catalog")).forEach(p => CAT[p.sku] = p); } catch(e){}
 }
 async function loadWallet(){
   let W; try { W = await api("/api/wallet"); } catch(e){ return; }
@@ -846,8 +867,8 @@ document.addEventListener("click", async e => { const b = e.target.closest("[dat
   try { await api(`/api/wallet/${b.dataset.wdel}`,{method:"DELETE"}); toast("Removed"); } catch(err){ toast(err.message); } loadWallet(); });
 
 if (!OWNER) $("#gate").classList.add("show");
-refresh(); loadCatalog(); loadModels(); loadWallet();
-setInterval(refresh, 4000); setInterval(loadCatalog, 8000);
+loadCatalog().then(refresh); loadModels(); loadWallet();
+setInterval(refresh, 4000);
 </script>
 </body>
 </html>

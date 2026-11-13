@@ -24,7 +24,7 @@ Open questions ("which office chair is best under $200?") can go to a
 frontier model for research. It gets the question with your address, card
 and email removed, has no tools, and can't buy anything.
 
-The dashboard shows the same table live under **Who does what**, and every
+The dashboard's **Agents** tab shows the same table live, and every
 request shows which model or rule handled each step.
 
 ## Run it
@@ -45,11 +45,10 @@ or `buy a $100 gift card` (denied: blocked category).
 ## Use a local model
 
 Install [Ollama](https://ollama.com/download) (Mac: `brew install ollama`).
-Warden finds it and starts it for you. Then, in the dashboard under
-**Who does what → Manage**, Warden
-shows which models fit your computer, downloads the one you pick, and **Test**
-runs its three model jobs so you can see the model handle them. Until a model
-is running, rules do those jobs.
+Warden finds it and starts it for you. Then, in the dashboard's **Agents** tab,
+**Manage** shows which models fit your computer and downloads the one you pick,
+**Test** runs its three model jobs so you can see the model handle them, and
+**Stop** frees the memory. Until a model is running, rules do those jobs.
 
 On a Mac, run Ollama natively rather than in Docker: Docker can't use the
 Apple GPU. LM Studio, llama.cpp and vLLM work too:

@@ -18,7 +18,7 @@ product page or model answer can't talk its way past a blocked category.
 
 ## Picking a local model
 
-**Who does what → Manage** in the dashboard (`warden/local_models.py`):
+**Agents → Manage** in the dashboard (`warden/local_models.py`):
 
 - **What fits:** Warden reads your memory and chip. Apple Silicon can use about
   60% of unified memory for a model, an NVIDIA GPU about 90% of its VRAM, and
@@ -59,8 +59,8 @@ product page. You pay there, then:
 
 | You do | Recorded as |
 |---|---|
-| Mark paid, within 1% of the proposal | `as proposed` |
-| Mark paid, different amount | `changed` (the real amount counts toward your caps) |
+| Pay, or Paid elsewhere, within 1% of the proposal | `as proposed` |
+| Paid elsewhere, different amount | `changed` (the real amount counts toward your caps) |
 | Skip | `skipped` (its budget is released) |
 
 Open handoffs reserve budget, so an agent can't stack proposals past your caps.
@@ -91,7 +91,7 @@ All in `data/policy.json`, editable from the dashboard (**Hard limits**).
 | `risk_level` | 1 |
 | `max_per_transaction` | 300 |
 | `auto_approve_under` | 50 |
-| `daily_cap` / `monthly_cap` | 200 / 600 |
+| `daily_cap` / `monthly_cap` | 500 / 1500 |
 | `allowed_merchants` | `["demo-store"]` |
 | `blocked_merchants` | `[]` |
 | `blocked_categories` | gift_cards, crypto, firearms, subscriptions |

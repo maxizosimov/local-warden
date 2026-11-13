@@ -398,6 +398,22 @@ def demo_reset():
     return {"ok": True}
 
 
+@app.post("/api/demo/clear", dependencies=[Depends(owner)])
+def demo_clear():
+    """Start the guided demo from a clean board. History stays in the ledger."""
+    for p in REGISTRY["demo-store"].products.values():
+        p.price = p.list_price
+    for a in hub._rows("SELECT id FROM approvals WHERE status='pending'"):
+        hub.decide(a["id"], False, actor="demo")
+    for o in hub._rows("SELECT id FROM orders WHERE status='handed_off'"):
+        hub.skip_handoff(o["id"], actor="demo")
+    for m in hub._rows("SELECT id FROM monitors WHERE status='active'"):
+        hub.cancel_monitor(m["id"])
+    hub.set_policy({"risk_level": 1, "pay_merchants": []}, actor="demo")
+    hub.log("demo_cleared", "demo")
+    return {"ok": True}
+
+
 @app.get("/demo/cart/{sku}", response_class=HTMLResponse)
 def demo_cart(sku: str, qty: int = 1):
     """Stand-in for a real store's checkout in handoff mode. The card on it is fake and

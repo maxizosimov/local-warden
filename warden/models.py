@@ -123,7 +123,8 @@ Schema: {"type": "buy"|"monitor"|"research",
  "min_discount_pct": number or null,
  "action_on_trigger": "buy"|"notify",
  "needs_research": bool}
-"monitor" = wait for a price/sale condition. "research" = user wants options, not a purchase."""
+"monitor" = wait for a price/sale condition ("when", "if", "once", "drops"). "research" = user wants
+options, not a purchase. Only fill in numbers and stores the user stated; otherwise null (quantity 1)."""
 
 
 def rule_parse(text: str) -> dict:
@@ -165,6 +166,30 @@ def rule_parse(text: str) -> dict:
     return out
 
 
+def _grounded(model: dict, base: dict, text: str) -> dict:
+    """Keep what the model got right (the product, the kind of request) but only
+    numbers and stores the user actually said: small models invent "12 pens under $5"
+    from "buy gel pens", and miss the "when" that turns a buy into a watch."""
+    t = text.lower()
+    said = {float(n) for n in re.findall(r"\d+(?:\.\d+)?", t.replace(",", ""))}
+    out = dict(base)
+    if isinstance(model.get("query"), str) and model["query"].strip():
+        out["query"] = model["query"].strip()
+    for k in ("quantity", "max_price", "min_discount_pct"):
+        v = model.get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) in said:
+            out[k] = int(v) if k == "quantity" else float(v)
+    if isinstance(model.get("merchant"), str) and model["merchant"].lower() in t:
+        out["merchant"] = model["merchant"].lower()
+    if base["type"] != "monitor" and model.get("type") in ("buy", "research"):
+        out["type"] = model["type"]  # a stated condition ("when", "if", "drops") always means monitor
+    out["needs_research"] = out["type"] == "research"
+    if out["type"] == "monitor" and base["action_on_trigger"] == "buy" \
+            and model.get("action_on_trigger") in ("buy", "notify"):
+        out["action_on_trigger"] = model["action_on_trigger"]
+    return out
+
+
 def parse_intent(text: str) -> tuple[dict, str]:
     raw = local_chat(INTENT_SYSTEM, text, timeout=30)
     if raw:
@@ -172,9 +197,8 @@ def parse_intent(text: str) -> tuple[dict, str]:
         if m:
             try:
                 d = json.loads(m.group(0))
-                base = rule_parse(text)
-                base.update({k: v for k, v in d.items() if k in base and v not in ("", None)})
-                return base, local_label()
+                if isinstance(d, dict):
+                    return _grounded(d, rule_parse(text), text), local_label()
             except json.JSONDecodeError:
                 pass
     return rule_parse(text), RULES
